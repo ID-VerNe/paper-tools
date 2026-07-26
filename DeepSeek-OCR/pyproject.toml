@@ -1,20 +1,14 @@
 [project]
 name = "deepseek-ocr"
 version = "0.1.0"
-description = "Add your description here"
+description = "DeepSeek-OCR API 本地封装：PDF/EPUB 转 Markdown，无需本地 GPU"
 requires-python = ">=3.10"
 dependencies = [
-    "addict>=2.4.0",
     "beautifulsoup4>=4.15.0",
-    "easydict>=1.13",
     "ebooklib>=0.20",
-    "einops>=0.8.2",
     "html2text>=2025.4.15",
-    "img2pdf>=0.6.3",
-    "numpy>=2.2.6",
     "pillow>=12.3.0",
     "pymupdf>=1.28.0",
     "requests>=2.34.2",
-    "tokenizers==0.20.3",
-    "transformers==4.46.3",
+    "tqdm>=4.60",
 ]

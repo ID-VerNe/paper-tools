@@ -1,2 +1,2 @@
 @echo off
-start "" .\python_embed\python.exe ocr_cli.py
+uv run python ocr_gui.py
