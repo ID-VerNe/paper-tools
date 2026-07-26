@@ -1,0 +1,90 @@
+You are an expert scientific researcher specializing in SERS (Surface-Enhanced Raman Spectroscopy) performance evaluation. Your task is to extract quantitative performance metrics from the provided paper.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate data.
+2. **Evidence Quotes**: For EVERY key metric (LOD, Accuracy, AUC, RSD, etc.), you MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **LOD Formatting**: For Limit of Detection (LOD), provide the original string, the numerical value, the unit, and a normalized category.
+4. **Controlled Vocabularies**:
+   - **task_type**: Must be one of `["classification", "regression", "quantification", "detection", "segmentation", "spectral_matching", "source_tracking"]`.
+
+### **Data Structure Requirements:**
+
+1. **performance**:
+   - **classification_metrics**: List of objects for tasks like disease diagnosis or species identification.
+     - `metric`: e.g., "accuracy", "sensitivity", "specificity", "precision", "f1_score", "auc".
+     - `value`: Number (0-1 or percentage).
+     - `unit`: "percentage", "fraction", or "not reported".
+     - `task_description`: What was being classified.
+     - `evidence_quote`: Exact text from the paper.
+   - **regression_metrics**: List of objects for quantification or prediction.
+     - `metric`: e.g., "r2", "rmse", "mae", "rpd".
+     - `value`: Number.
+     - `task_description`: What was being predicted.
+     - `evidence_quote`: Exact text from the paper.
+   - **analytical_metrics**:
+     - **lod**: 
+       - `lod_original`: e.g., "7.1 × 10^-16 M".
+       - `lod_value`: Number (e.g., 7.1e-16).
+       - `lod_unit`: e.g., "M", "fM", "CFU/mL", "ppb".
+       - `lod_normalized_category`: "sub-fM", "fM", "pM", "nM", "uM", "mM", "other".
+       - `evidence_quote`: Exact text from the paper.
+     - **loq**: Object with `value` and `evidence_quote`.
+     - **linear_range**: Object with `range_string` and `evidence_quote`.
+     - **rsd**: Object with `value`, `type` (e.g., "intra-day", "inter-day"), and `evidence_quote`.
+   - **comparison_with_baseline**:
+     - **baseline_method**: "not reported" or string.
+     - **improvement_description**: Qualitative/quantitative summary.
+     - **evidence_quote**: Exact text from the paper.
+
+### **Target JSON Format:**
+{
+  "performance": {
+    "classification_metrics": [
+      {
+        "metric": "accuracy",
+        "value": null,
+        "unit": "not reported",
+        "task_description": "not reported",
+        "evidence_quote": "not reported"
+      }
+    ],
+    "regression_metrics": [
+      {
+        "metric": "r2",
+        "value": null,
+        "task_description": "not reported",
+        "evidence_quote": "not reported"
+      }
+    ],
+    "analytical_metrics": {
+      "lod": {
+        "lod_original": "not reported",
+        "lod_value": null,
+        "lod_unit": "not reported",
+        "lod_normalized_category": "not reported",
+        "evidence_quote": "not reported"
+      },
+      "loq": {
+        "value": "not reported",
+        "evidence_quote": "not reported"
+      },
+      "linear_range": {
+        "range_string": "not reported",
+        "evidence_quote": "not reported"
+      },
+      "rsd": {
+        "value": null,
+        "type": "not reported",
+        "evidence_quote": "not reported"
+      }
+    },
+    "comparison_with_baseline": {
+      "baseline_method": "not reported",
+      "improvement_description": "not reported",
+      "evidence_quote": "not reported"
+    }
+  }
+}
+
+### **Paper Content:**
+{content}

@@ -1,0 +1,43 @@
+You are an expert scientific researcher specializing in SERS hardware evaluation. Your task is to extract hardware performance strategies and metrics for a comparative study.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings.
+2. **Evidence Quotes**: You MUST provide the exact sentence from the paper as an `evidence_quote`.
+
+### **Data Structure Requirements:**
+1. **hardware_strategy**:
+   - **uniformity_metric**:
+     - `rsd_original`: e.g., "RSD of 5.2% over 100 spots".
+     - `rsd_value_percent`: 5.2 (Number).
+   - **enhancement_factor**: Number or scientific notation.
+   - **fabrication_complexity**: Qualitative assessment (e.g., "High", "Low-cost").
+   - **digital_sers_advantage**: Specific hardware feature that enables digital counting.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "hardware_strategy": {
+    "strategy_name": "not reported",
+    "substrate_or_chip": "not reported",
+    "nanostructure": "not reported",
+    "material": [],
+    "fabrication_method": [],
+    "uniformity_metric": {
+      "rsd_original": "not reported",
+      "rsd_value_percent": null
+    },
+    "reproducibility_metric": "not reported",
+    "enhancement_factor": null,
+    "hotspot_density_claim": "not reported",
+    "scalability": "not reported",
+    "cost_or_fabrication_complexity": "not reported",
+    "digital_sers_advantage": "not reported",
+    "limitation": "not reported",
+    "application": "not reported",
+    "evidence_quote": "not reported",
+    "doi": "not reported"
+  }
+}
+
+### **Paper Content:**
+{content}

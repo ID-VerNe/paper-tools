@@ -1,0 +1,352 @@
+# Digital SERS Systematic Review — litrev-extract Configuration
+
+# ============================================
+# Project Metadata
+# ============================================
+project:
+  name: "digital-sers-review"
+  description: "ML-Driven Digital SERS Analysis — Systematic Review of 250 Papers"
+
+# ============================================
+# Input Documents
+# ============================================
+input:
+  directory: "../../01-文章库/汇总"
+  formats: [.md]
+  recursive: true
+  exclude_patterns: ["**/derived/**"]
+
+# ============================================
+# Output Layout
+# ============================================
+output:
+  directory: "./output"
+  structure: "mirror"
+  file_naming:
+    pattern: "{base}_{prompt_name}_{model_alias}.json"
+
+# ============================================
+# LLM Models
+# ============================================
+models:
+  - alias: "claude-opus-4-8"
+    api_key_env: "ANTHROPIC_API_KEY"
+    base_url: "https://muyuan.do/v1"
+    model_name: "claude-opus-4-8"
+    max_concurrent: 3
+    max_retries: 10
+    retry_delay_base: 2
+    rate_limit:
+      max_requests: 50
+      window_seconds: 60
+
+  - alias: "ds"
+    api_key_env: "OPENAI_API_KEY"
+    base_url: "https://napi.jiuqigz.com/v1"
+    model_name: "deepseek-v4-pro"
+    max_concurrent: 100
+    max_retries: 10
+    retry_delay_base: 2
+    rate_limit:
+      max_requests: 0  # No rate limit
+
+  - alias: "glm"
+    api_key_env: "OPENAI_API_KEY"
+    base_url: "https://napi.jiuqigz.com/v1"
+    model_name: "glm-5.1"
+    max_concurrent: 100
+    max_retries: 10
+    retry_delay_base: 2
+    rate_limit:
+      max_requests: 0
+
+# ============================================
+# Prompt Definitions (21 prompts)
+# ============================================
+prompts:
+  - name: "metadata"
+    id: "v1_metadata"
+    file: "prompts/metadata_extraction.txt"
+    system_prompt: "You are an expert scientific researcher focused on bibliographic data extraction."
+
+  - name: "study_analysis"
+    id: "v1_study"
+    file: "prompts/study_analysis.txt"
+    system_prompt: "You are an expert scientific reviewer specializing in SERS and Machine Learning."
+
+  - name: "hardware_measurement"
+    id: "v1_hw_ms"
+    file: "prompts/hardware_measurement.txt"
+    system_prompt: "You are an expert scientific researcher specializing in SERS hardware and measurement techniques."
+
+  - name: "ml_digitalization"
+    id: "v1_ml_digi"
+    file: "prompts/ml_digitalization.txt"
+    system_prompt: "You are an expert in Digital SERS and Machine Learning analysis."
+
+  - name: "processing_validation"
+    id: "v1_proc_val"
+    file: "prompts/processing_validation.txt"
+    system_prompt: "You are an expert in spectroscopic data processing and ML model validation."
+
+  - name: "performance_metrics"
+    id: "v1_perf"
+    file: "prompts/performance_metrics.txt"
+    system_prompt: "You are an expert scientific evaluator of SERS and ML performance."
+
+  - name: "interpretability_future"
+    id: "v1_interp_future"
+    file: "prompts/interpretability_future.txt"
+    system_prompt: "You are an expert scientific reviewer focused on XAI, future trends, and research quality."
+
+  - name: "timeline_evolution"
+    id: "v1_timeline"
+    file: "prompts/timeline_evolution.txt"
+    system_prompt: "You are an expert scientific historian of SERS and Machine Learning evolution."
+
+  - name: "threshold_strategy"
+    id: "v1_threshold"
+    file: "prompts/threshold_strategy.txt"
+    system_prompt: "You are an expert scientific researcher focused on dSERS thresholding logic."
+
+  - name: "ml_model_comparison"
+    id: "v1_ml_comp"
+    file: "prompts/ml_model_comparison.txt"
+    system_prompt: "You are an expert in Machine Learning model comparison for spectroscopy."
+
+  - name: "preprocessing_workflow"
+    id: "v1_preproc"
+    file: "prompts/preprocessing_workflow.txt"
+    system_prompt: "You are an expert in spectroscopic data preprocessing techniques."
+
+  - name: "application_summary"
+    id: "v1_apps"
+    file: "prompts/application_summary.txt"
+    system_prompt: "You are an expert in SERS and ML applications across Biomedical, Food, and Environmental domains."
+
+  - name: "future_framework"
+    id: "v1_future"
+    file: "prompts/future_framework.txt"
+    system_prompt: "You are an expert in open science, data sharing, and model generalization for SERS."
+
+  - name: "intensity_comparison"
+    id: "v1_int_vs_cnt"
+    file: "prompts/intensity_vs_counting.txt"
+    system_prompt: "You are an expert scientific researcher comparing Analog vs Digital SERS performance."
+
+  - name: "chip_classification"
+    id: "v1_chip_class"
+    file: "prompts/chip_classification.txt"
+    system_prompt: "You are an expert scientific researcher classifying SERS hardware."
+
+  - name: "hardware_strategy"
+    id: "v1_hw_strat"
+    file: "prompts/hardware_strategy.txt"
+    system_prompt: "You are an expert scientific researcher evaluating SERS hardware performance strategies."
+
+  - name: "augmentation_qc"
+    id: "v1_aug_qc"
+    file: "prompts/data_augmentation_qc.txt"
+    system_prompt: "You are an expert in SERS data augmentation and quality control."
+
+  - name: "model_evaluation_xai"
+    id: "v1_eval_xai"
+    file: "prompts/model_evaluation_xai.txt"
+    system_prompt: "You are an expert in SERS machine learning evaluation and explainability."
+
+  - name: "application_landscape"
+    id: "v1_app_land"
+    file: "prompts/application_landscape.txt"
+    system_prompt: "You are an expert scientific researcher mapping the SERS application landscape."
+
+  - name: "challenges_matrix"
+    id: "v1_chall_mat"
+    file: "prompts/challenges_future_matrix.txt"
+    system_prompt: "You are an expert scientific researcher identifying challenges and future directions in SERS."
+
+# ============================================
+# Post-Processing Pipeline
+# ============================================
+postproc:
+  pipeline:
+    - name: aggregate
+      module: "litrev_extract.postproc.aggregate"
+      enabled: true
+
+    - name: stats
+      module: "litrev_extract.postproc.stats"
+      enabled: true
+      config:
+        output_file: "output/reports/quick_stats.json"
+        sections:
+          - prompt: "application_landscape"
+            field: "application_domain"
+            type: value_counts
+            top_k: 10
+          - prompt: "application_landscape"
+            field: "landscape_data.domain"
+            type: value_counts
+            top_k: 10
+          - prompt: "timeline_evolution"
+            field: "milestone_category"
+            type: value_counts
+            top_k: 10
+          - prompt: "timeline_evolution"
+            field: "year"
+            type: value_counts
+            top_k: 10
+          - prompt: "ml_model_comparison"
+            field: "algorithm_family"
+            type: value_counts
+            top_k: 10
+          - prompt: "preprocessing_workflow"
+            field: "baseline_correction_method"
+            type: value_counts
+            top_k: 10
+          - prompt: "application_summary"
+            field: "application_domain"
+            type: value_counts
+            top_k: 10
+          - prompt: "threshold_strategy"
+            field: "threshold_criterion"
+            type: value_counts
+            top_k: 10
+          - prompt: "chip_classification"
+            field: "chip_category"
+            type: value_counts
+            top_k: 10
+          - prompt: "future_framework"
+            field: "raw_data_available"
+            type: count_true
+          - prompt: "model_evaluation_xai"
+            field: "xai_used"
+            type: count_true
+
+    - name: export_csv
+      module: "litrev_extract.postproc.export_csv"
+      enabled: true
+      config:
+        enrich_from: ["metadata"]
+        exports:
+          - name: "fig1_timeline"
+            prompt: "timeline_evolution"
+            fields:
+              - source: "year"
+                alias: "year"
+              - source: "milestone_category"
+                alias: "milestone_category"
+              - source: "is_representative_milestone"
+                alias: "is_milestone"
+              - source: "doi"
+                alias: "doi"
+          - name: "table1_threshold"
+            prompt: "threshold_strategy"
+            fields:
+              - source: "threshold_criterion"
+                alias: "criterion"
+              - source: "digital_strategy"
+                alias: "strategy"
+              - source: "quantification_basis"
+                alias: "quantification_basis"
+              - source: "lod"
+                alias: "lod"
+          - name: "fig3_hardware"
+            prompt: "chip_classification"
+            fields:
+              - source: "chip_category"
+                alias: "chip_category"
+              - source: "digital_function"
+                alias: "function"
+              - source: "fabrication_method"
+                alias: "fabrication"
+          - name: "table2_ml_models"
+            prompt: "ml_model_comparison"
+            fields:
+              - source: "algorithm_family"
+                alias: "family"
+              - source: "specific_algorithm"
+                alias: "specific"
+              - source: "best_algorithm"
+                alias: "best"
+              - source: "task_type"
+                alias: "task"
+          - name: "app_landscape"
+            prompt: "application_landscape"
+            fields:
+              - source: "application_domain"
+                alias: "domain"
+              - source: "application_subdomain"
+                alias: "subdomain"
+              - source: "target"
+                alias: "target"
+              - source: "ml_algorithm"
+                alias: "algorithm"
+
+    - name: report_md
+      module: "litrev_extract.postproc.report_md"
+      enabled: true
+      config:
+        output_file: "detailed_report.md"
+        sections:
+          - title: "Timeline Analysis"
+            source_prompt: "timeline_evolution"
+            content: |
+              ## Timeline of SERS Digitalization
+              {{value_counts "timeline_evolution" "milestone_category"}}
+
+              Year distribution:
+              {{value_counts "timeline_evolution" "year"}}
+
+          - title: "Threshold Strategies"
+            source_prompt: "threshold_strategy"
+            content: |
+              ## Threshold Strategies
+              {{value_counts "threshold_strategy" "threshold_criterion"}}
+
+              Digital strategies:
+              {{value_counts "threshold_strategy" "digital_strategy"}}
+
+          - title: "ML Models"
+            source_prompt: "ml_model_comparison"
+            content: |
+              ## ML Model Comparison
+              Algorithm families:
+              {{value_counts "ml_model_comparison" "algorithm_family"}}
+
+              Task types:
+              {{value_counts "ml_model_comparison" "task_type"}}
+
+          - title: "Preprocessing"
+            source_prompt: "preprocessing_workflow"
+            content: |
+              ## Preprocessing Methods
+              Baseline correction:
+              {{value_counts "preprocessing_workflow" "baseline_correction_method"}}
+
+              Smoothing:
+              {{value_counts "preprocessing_workflow" "smoothing_method"}}
+
+          - title: "Applications"
+            source_prompt: "application_summary"
+            content: |
+              ## Application Domains
+              {{value_counts "application_summary" "application_domain"}}
+
+          - title: "Open Science"
+            source_prompt: "future_framework"
+            content: |
+              ## Open Science & Data Sharing
+              Raw data available: {{count_true "future_framework" "raw_data_available"}}
+              Code available: {{count_true "future_framework" "code_available"}}
+
+          - title: "XAI Usage"
+            source_prompt: "model_evaluation_xai"
+            content: |
+              ## Explainable AI
+              XAI used: {{count_true "model_evaluation_xai" "xai_used"}}
+
+          - title: "Challenges"
+            source_prompt: "challenges_matrix"
+            content: |
+              ## Challenges & Future Directions
+              {{value_counts "challenges_matrix" "category"}}

@@ -1,0 +1,68 @@
+You are an expert scientific researcher specializing in Digital SERS (Surface-Enhanced Raman Spectroscopy) and Machine Learning. Your task is to extract information regarding the digitalization strategy and machine learning techniques used in the paper.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate data.
+2. **Evidence Quotes**: For EVERY key decision (Threshold criteria, Best algorithm, Augmentation factor, etc.), you MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Controlled Vocabularies**:
+   - **task_type**: Must be one of `["classification", "regression", "quantification", "detection", "segmentation", "spectral_matching", "source_tracking"]`.
+   - **algorithm_family**: Must be one of `["univariate", "chemometrics", "classical_ml", "ensemble_learning", "cnn", "resnet", "transformer", "siamese_network", "ann_dnn", "regression_model", "xai"]`.
+
+### **Data Structure Requirements:**
+
+1. **digitalization_strategy**:
+   - **uses_intensity_integration**: Boolean.
+   - **uses_thresholding**: Boolean.
+   - **threshold_details**:
+     - `criterion`: e.g., "mean + 3*sigma", "Otsu's method", "static value".
+     - `formula`: Mathematical expression if mentioned.
+     - `evidence_quote`: Exact text from the paper.
+   - **positive_event_definition**: How a "positive" detection event is defined.
+   - **quantification_logic**: e.g., "Pixel Counting", "Poisson Distribution", "Direct Regression".
+
+2. **machine_learning**:
+   - **ml_used**: Boolean.
+   - **task_type**: Use controlled vocabulary.
+   - **algorithm_details**:
+     - `algorithms_used`: List of all algorithms.
+     - `best_algorithm`: The specific model that performed the best.
+     - `algorithm_family`: Use controlled vocabulary for the best model.
+     - `evidence_quote`: Exact text claiming the best model.
+   - **feature_engineering**: List of methods.
+   - **software_stack**: List of tools (e.g., Python, PyTorch).
+   - **code_open_source**: 
+     - `is_available`: Boolean.
+     - `url`: GitHub link or "not reported".
+
+### **Target JSON Format:**
+{
+  "digitalization_strategy": {
+    "uses_intensity_integration": null,
+    "uses_thresholding": null,
+    "threshold_details": {
+      "criterion": "not reported",
+      "formula": "not reported",
+      "evidence_quote": "not reported"
+    },
+    "positive_event_definition": "not reported",
+    "quantification_logic": "not reported"
+  },
+  "machine_learning": {
+    "ml_used": null,
+    "task_type": "not reported",
+    "algorithm_details": {
+      "algorithms_used": [],
+      "best_algorithm": "not reported",
+      "algorithm_family": "not reported",
+      "evidence_quote": "not reported"
+    },
+    "feature_engineering": [],
+    "software_stack": [],
+    "code_open_source": {
+      "is_available": null,
+      "url": "not reported"
+    }
+  }
+}
+
+### **Paper Content:**
+{content}

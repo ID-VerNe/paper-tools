@@ -1,0 +1,32 @@
+You are an expert scientific researcher. Your task is to extract the challenges (limitations) and future directions discussed in the paper to help build a "Challenges and Future Outlook" matrix.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If a limitation or future direction is not explicitly mentioned, use `null` or an empty list `[]`.
+2. **Evidence Quotes**: You MUST provide the exact sentence from the paper justifying the limitation or future direction.
+3. **Controlled Vocabularies**:
+   - **limitation_category**: Must be one of `["substrate_reproducibility", "hotspot_variability", "small_dataset", "lack_of_external_validation", "matrix_interference", "poor_interpretability", "lack_of_standardization", "instrument_variability", "high_cost", "complex_sample_preparation", "weak_portability", "limited_multiplexing", "uncertain_quantification", "data_privacy", "insufficient_metadata"]`.
+   - **future_direction_category**: e.g., `["federated_learning", "automated_robotics", "portable_poct", "standardized_databases", "explainable_ai", "cloud_based_analysis", "integrated_microfluidics", "large_foundation_models", "clinical_trials"]`.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "reported_limitations": [
+    {
+      "category": "not reported",
+      "description": "not reported",
+      "evidence_quote": "not reported"
+    }
+  ],
+  "reported_future_directions": [
+    {
+      "category": "not reported",
+      "description": "not reported",
+      "evidence_quote": "not reported"
+    }
+  ],
+  "inferred_review_challenge": [],
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

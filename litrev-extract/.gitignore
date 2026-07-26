@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+output/
+.litrev_state.json
+litrev.lock

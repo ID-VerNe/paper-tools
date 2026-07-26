@@ -1,0 +1,29 @@
+You are an expert scientific researcher. Your task is to extract the categorical "pathway" of the study's application to help build a landscape map (Sankey, Sunburst, or Network graph).
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If a category is not explicitly mentioned, use `"not reported"`.
+2. **Evidence Quotes**: You MUST provide the exact sentence from the paper justifying these classifications.
+3. **Controlled Vocabularies**:
+   - **domain**: Must be one of `["biomedical", "food_safety", "environmental_monitoring", "hardware", "algorithm", "data_resource", "review_or_perspective"]`.
+   - **algorithm_family**: Must be one of `["univariate", "chemometrics", "classical_ml", "ensemble_learning", "cnn", "resnet", "transformer", "siamese_network", "ann_dnn", "regression_model", "xai"]`.
+
+### **Data Structure Requirements:**
+Extract the following "Pathway" for the landscape:
+`Domain -> Subdomain -> Target Type -> Sample Matrix -> Best Algorithm Family`
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "landscape_data": {
+    "domain": "not reported",
+    "subdomain": "not reported",
+    "target_type": "not reported",
+    "sample_matrix": "not reported",
+    "algorithm_family": "not reported"
+  },
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

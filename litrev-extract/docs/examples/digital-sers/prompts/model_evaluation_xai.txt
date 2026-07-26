@@ -1,0 +1,45 @@
+You are an expert scientific researcher specializing in Machine Learning for SERS data analysis. Your task is to extract details regarding model evaluation protocols and Explainable AI (XAI) for a review paper.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate.
+2. **Evidence Quotes**: You MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Controlled Vocabularies**:
+   - **task_type**: Items should be from `["classification", "regression", "quantification", "detection", "segmentation", "spectral_matching", "source_tracking"]`.
+
+### **Data Structure Requirements:**
+1. **validation_protocols**:
+   - **dataset_split**: e.g., "70:30", "80:10:10".
+   - **cross_validation**: e.g., "5-fold CV", "Leave-one-out".
+   - **external_validation**: Boolean. Was it tested on a completely independent study or site?
+   - **independent_batch_validation**: Boolean. Was it tested on a different substrate batch?
+   - **independent_instrument_validation**: Boolean. Was it tested on different hardware?
+
+2. **explainability_xai**:
+   - **xai_used**: Boolean.
+   - **xai_methods**: List of methods (e.g., "SHAP", "LIME", "Grad-CAM", "Saliency Maps", "Attention weights").
+   - **biochemical_interpretation**: Boolean. Did they map the XAI results back to specific molecular vibrations?
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "task_type": [],
+  "dataset_split": "not reported",
+  "cross_validation": "not reported",
+  "external_validation": null,
+  "external_validation_description": "not reported",
+  "independent_batch_validation": null,
+  "independent_instrument_validation": null,
+  "blind_test": null,
+  "metrics_reported": [],
+  "confusion_matrix_reported": null,
+  "roc_auc_reported": null,
+  "xai_used": null,
+  "xai_methods": [],
+  "important_spectral_regions": [],
+  "biochemical_interpretation_provided": null,
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

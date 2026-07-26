@@ -1,0 +1,14 @@
+Starting DeepSeek-OCR LiteLLM Script...
+Step 1: Rendering PDF to high-quality images...
+Total pages: 11
+Step 2: Processing pages with LiteLLM (Multi-key Concurrency)...
+  0%|                                                   | 0/11 [00:0  9%|███▉                                       | 1/11 [00:26<04:24, 27%|███████████▋                               | 3/11 [00:26<00:55, 36%|███████████████▋                           | 4/11 [01:03<01:59, 17.14s/100%|██████████████████████████████████████████| 11/11 [01:34<00:00,  8.63s/it]
+Step 3: Post-processing and generating Markdown...
+Traceback (most recent call last):
+  File "C:\Users\VerNe\Downloads\Documents\DeepSeek-OCR\run_dpsk_ocr_litellm.py", line 206, in <module>
+    main()
+  File "C:\Users\VerNe\Downloads\Documents\DeepSeek-OCR\run_dpsk_ocr_litellm.py", line 176, in main
+    content = content.replace(a_match_image, f'![](images/{page_idx}_{idx}.jpg)\n')
+NameError: name 'idx' is not defined. Did you mean: 'id'?
+[ERROR] Application exited with error code 1.
+Press any key to continue . . .

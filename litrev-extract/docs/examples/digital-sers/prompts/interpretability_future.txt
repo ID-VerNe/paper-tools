@@ -1,0 +1,52 @@
+You are an expert scientific researcher. Your task is to extract information regarding the interpretability of machine learning models, future directions, and supporting evidence from the provided paper.
+
+Please analyze the paper content provided and extract the following information:
+
+1. **interpretability**:
+   - **xai_used**: Boolean. Was eXplainable AI (XAI) or model interpretation used?
+   - **xai_methods**: List of methods used (e.g., SHAP, LIME, Grad-CAM, Saliency maps, Feature importance).
+   - **important_raman_peaks**: List of specific Raman shifts (cm-1) identified as critical by the model.
+   - **biochemical_assignment**: List of chemical assignments for the important peaks (e.g., 1003 cm-1: Phenylalanine).
+   - **digital_biomarkers_claimed**: Boolean. Does the paper claim to have discovered new digital biomarkers?
+
+2. **limitations_and_future**:
+   - **limitations_reported**: List of weaknesses or constraints mentioned by the authors.
+   - **future_directions_reported**: List of suggested next steps or future research areas.
+   - **translation_barriers**: Factors preventing clinical or commercial adoption.
+   - **standardization_issues**: Issues regarding data format, protocols, or substrate consistency.
+   - **data_sharing_issues**: Mentions of privacy, proprietary datasets, or lack of open data.
+
+3. **evidence**:
+   - **key_quotes**: List 2-3 short, critical quotes that summarize the paper's main contribution.
+   - **tables_or_figures_used**: List the labels of the most important Tables or Figures (e.g., "Table 1", "Fig. 3").
+   - **confidence_score_1_to_5**: Integer (1-5). Your confidence in the accuracy of the extracted data based on paper clarity.
+   - **missing_critical_information**: List any technical details that should have been reported but were missing (e.g., "laser power not specified").
+
+Return ONLY a valid JSON object. If a value is missing, set it to `null`, `""`, or `[]` as appropriate.
+
+### Target JSON Format:
+{
+  "interpretability": {
+    "xai_used": null,
+    "xai_methods": [],
+    "important_raman_peaks": [],
+    "biochemical_assignment": [],
+    "digital_biomarkers_claimed": null
+  },
+  "limitations_and_future": {
+    "limitations_reported": [],
+    "future_directions_reported": [],
+    "translation_barriers": [],
+    "standardization_issues": [],
+    "data_sharing_issues": []
+  },
+  "evidence": {
+    "key_quotes": [],
+    "tables_or_figures_used": [],
+    "confidence_score_1_to_5": null,
+    "missing_critical_information": []
+  }
+}
+
+### Paper Content:
+{content}

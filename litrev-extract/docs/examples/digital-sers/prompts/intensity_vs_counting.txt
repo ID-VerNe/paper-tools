@@ -1,0 +1,51 @@
+You are an expert scientific researcher. Your task is to identify and extract papers that perform a direct comparison between "Analog Intensity Integration" (traditional SERS) and "Digital Event Counting" (Digital SERS).
+
+### **Mandatory Extraction Rules:**
+1. **Explicit Comparison Check**: First, determine if the paper actually performs a direct experimental comparison between an analog intensity-based method and a digital event counting-based method on the same dataset. 
+2. **Comparison Type Categorization**:
+   - `same_dataset_intensity_vs_counting`: Quantitative comparison of both methods using the same experimental data.
+   - `conceptual_discussion_only`: Discusses the advantages of digital vs analog but does not provide a direct head-to-head performance comparison (e.g., in a review or introduction).
+   - `no_comparison`: Does not mention or compare analog vs digital SERS readouts.
+3. **No Guessing**: If no comparison is reported, set `explicit_comparison_reported` to `false`.
+4. **Evidence Quotes**: You MUST provide the exact sentence from the paper that discusses the comparison or the justification for the choice of method.
+
+### **Data Structure Requirements:**
+1. **explicit_comparison_reported**: `true` if and only if the paper performs a quantitative head-to-head comparison.
+2. **comparison_type**: Use the categories defined above.
+3. **target**: The molecule or target analyte.
+4. **matrix**: The sample background.
+5. **intensity_method_performance**:
+   - `r2`: Linear correlation coefficient.
+   - `lod`: Limit of Detection string.
+   - `limitation`: e.g., "Non-linear at low concentrations".
+6. **digital_counting_performance**:
+   - `r2`: Linear correlation coefficient.
+   - `lod`: Limit of Detection string.
+   - `advantage`: e.g., "Higher sensitivity", "Better linearity at low concentrations".
+7. **reported_improvement**: Qualitative or quantitative description of the performance gain.
+8. **evidence_quote**: Exact text from the paper.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "explicit_comparison_reported": false,
+  "comparison_type": "no_comparison",
+  "target": "not reported",
+  "matrix": "not reported",
+  "intensity_method_performance": {
+    "r2": null,
+    "lod": "not reported",
+    "limitation": "not reported"
+  },
+  "digital_counting_performance": {
+    "r2": null,
+    "lod": "not reported",
+    "advantage": "not reported"
+  },
+  "reported_improvement": "not reported",
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

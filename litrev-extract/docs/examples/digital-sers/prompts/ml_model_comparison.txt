@@ -1,0 +1,84 @@
+You are an expert scientific researcher specializing in Machine Learning applied to SERS. Your task is to extract detailed information regarding the ML models, task types, data requirements, and performance comparisons used in the paper.
+
+### **Mandatory Extraction Rules:**
+1. **Rigorous Comparison Check**:
+   - Determine if Machine Learning (ML) is actually used for data analysis. Set `ml_used` to `true` or `false`.
+   - Determine if the paper compares multiple ML algorithms (at least 2 different models). Set `multiple_algorithms_compared` to `true` or `false`.
+2. **No Guessing**: If a field is not explicitly mentioned, use `null` for numbers and `"not reported"` for strings.
+3. **Evidence Quote**: You MUST provide the exact sentence from the paper that identifies the best performing algorithm or the main comparison result.
+4. **Task Type**: Categorize the task as `classification`, `regression`, `quantification`, `detection`, etc.
+
+### **Data Structure Requirements:**
+
+- **ml_used**: Boolean, whether ML was used in the study.
+- **multiple_algorithms_compared**: Boolean, whether the study compared two or more ML models.
+- **number_of_algorithms_tested**: Integer, total count of ML algorithms evaluated.
+- **application_domain**: The field of study (e.g., "Biomedical", "Food Safety", "Environmental").
+- **target**: List of target analytes.
+- **matrix**: List of sample backgrounds.
+- **task_type**: List of task types (e.g., ["classification", "regression"]).
+- **input_data**: The type of input used for the model (e.g., "Raw spectra", "Baseline corrected", "SERS Images").
+- **algorithm_family**: The family of the best/primary algorithm (e.g., "CNN", "Classical ML", "Transformer", "Ensemble").
+- **specific_algorithm**: The specific name of the primary model (e.g., "ResNet-50", "Random Forest").
+- **compared_algorithms**: List of all algorithms that were compared in the study.
+- **best_algorithm**: The specific algorithm reported as having the best performance.
+- **feature_engineering**: List of methods used (e.g., "PCA", "Wavelet transform", "None/End-to-end").
+- **training_sample_size**:
+  - `subjects`: Number of biological subjects/donors.
+  - `samples`: Number of physical samples.
+  - `spectra`: Total number of spectra in training set.
+  - `pixels`: Total number of pixels (for image-based SERS).
+- **data_requirement_level**: Author's mention or your inference on data volume needed ("Low", "Medium", "High").
+- **interpretability_level**: Mention of model explainability (e.g., "Black box", "XAI used", "High").
+- **reported_strength**: Key advantage of the model as claimed by the authors.
+- **reported_limitation**: Key limitation or failure case mentioned.
+- **best_use_case_inferred**: Your expert inference on where this model fits best.
+- **performance**:
+  - `accuracy`: Numerical percentage (0.0 to 1.0) or null.
+  - `auc`: Area Under Curve value or null.
+  - `r2`: R-squared value for regression or null.
+  - `rmse`: Root Mean Square Error or null.
+  - `lod`: Limit of Detection string.
+- **evidence_quote**: The exact text claiming the best algorithm or performance.
+- **doi**: The DOI string.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "ml_used": false,
+  "multiple_algorithms_compared": false,
+  "number_of_algorithms_tested": 0,
+  "application_domain": "not reported",
+  "target": [],
+  "matrix": [],
+  "task_type": [],
+  "input_data": "not reported",
+  "algorithm_family": "not reported",
+  "specific_algorithm": "not reported",
+  "compared_algorithms": [],
+  "best_algorithm": "not reported",
+  "feature_engineering": [],
+  "training_sample_size": {
+    "subjects": null,
+    "samples": null,
+    "spectra": null,
+    "pixels": null
+  },
+  "data_requirement_level": "not reported",
+  "interpretability_level": "not reported",
+  "reported_strength": "not reported",
+  "reported_limitation": "not reported",
+  "best_use_case_inferred": "not reported",
+  "performance": {
+    "accuracy": null,
+    "auc": null,
+    "r2": null,
+    "rmse": null,
+    "lod": "not reported"
+  },
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

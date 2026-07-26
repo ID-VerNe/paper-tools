@@ -1,0 +1,28 @@
+You are an expert scientific researcher specializing in SERS hardware. Your task is to classify SERS chips based on their structural and functional features for a review paper.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate.
+2. **Evidence Quotes**: You MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Controlled Vocabularies**:
+   - **chip_category**: Must be one of `["general_purpose_enhancement_chip", "pixelated_mapping_chip", "partitioned_digital_chip", "microfluidic_integrated_chip", "dmf_integrated_chip", "portable_or_wearable_platform"]`.
+   - **digital_function**: Items must be from `["hotspot_uniformity", "event_pixelization", "physical_partitioning", "poisson_counting", "multiplex_encoding", "automated_sample_handling", "portable_readout"]`.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "chip_classification": {
+    "chip_category": "not reported",
+    "chip_name_or_description": "not reported",
+    "material": [],
+    "nanostructure": "not reported",
+    "fabrication_method": [],
+    "digital_function": [],
+    "automation_level": "not reported",
+    "representative_application": "not reported",
+    "evidence_quote": "not reported",
+    "doi": "not reported"
+  }
+}
+
+### **Paper Content:**
+{content}

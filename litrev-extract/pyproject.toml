@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "litrev-extract"
+version = "0.1.0"
+description = "Config-driven LLM-based systematic literature review extraction framework"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+keywords = ["systematic-review", "literature-review", "llm", "extraction", "research"]
+authors = [
+    {name = "litrev-extract contributors"},
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "openai>=1.0",
+    "tqdm>=4.60",
+    "click>=8.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-mock>=3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/litrev-extract"
+
+[project.scripts]
+litrev = "litrev_extract.cli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]

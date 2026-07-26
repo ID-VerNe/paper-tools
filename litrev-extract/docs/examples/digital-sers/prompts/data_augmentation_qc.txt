@@ -1,0 +1,48 @@
+You are an expert scientific researcher specializing in SERS data analysis and machine learning. Your task is to extract details regarding data augmentation strategies and quality control for a review paper.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate.
+2. **Evidence Quotes**: You MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Controlled Vocabularies**:
+   - **augmentation_methods**: Items must be from `["gaussian_noise", "spectral_shift", "intensity_scaling", "linear_combination", "mixup", "simulated_mixture", "spectral_splicing", "x_axis_shift", "smoothing_variation", "baseline_variation", "image_transform", "none"]`.
+
+### **Data Structure Requirements:**
+1. **data_augmentation**:
+   - **raw_dataset_size**:
+     - `spectra`: Total number of raw spectra.
+     - `samples`: Total number of physical samples.
+   - **augmented_dataset_size**:
+     - `spectra`: Total number of spectra after augmentation.
+     - `samples`: Total number of samples represented.
+   - **augmentation_factor**: Multiplier (e.g., 10x).
+   - **performance_comparison**:
+     - `before_augmentation`: Performance metrics (accuracy/R2) without augmentation.
+     - `after_augmentation`: Performance metrics with augmentation.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "data_augmentation_used": null,
+  "augmentation_methods": [],
+  "augmentation_factor": null,
+  "raw_dataset_size": {
+    "spectra": null,
+    "samples": null
+  },
+  "augmented_dataset_size": {
+    "spectra": null,
+    "samples": null
+  },
+  "augmentation_purpose": "not reported",
+  "physical_plausibility_discussed": null,
+  "augmentation_validation_method": [],
+  "distribution_check_used": null,
+  "overfitting_control": "not reported",
+  "performance_before_augmentation": {},
+  "performance_after_augmentation": {},
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

@@ -1,0 +1,37 @@
+You are an expert scientific researcher specializing in the historical evolution of SERS (Surface-Enhanced Raman Spectroscopy) and its transition from analog to digital analysis. Your task is to identify if the provided paper represents a significant milestone in the SERS digitalization timeline and to extract the relevant details.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If the paper does not propose a new method or category, or if information is not explicitly mentioned, use `null` or an empty list `[]`. Never hallucinate milestones.
+2. **Evidence Quotes**: For the `milestone_reason` and `milestone_category` determination, you MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Milestone Determination**: A paper is a `representative_milestone` ONLY if it introduces a FIRST instance of a method, a significant improvement in architecture, or a fundamental change in quantification logic (e.g., from intensity to pixel counting).
+
+### **Controlled Vocabularies:**
+- **milestone_category**: Must be one of `["intensity_integration", "sers_mapping", "hard_threshold_dsers", "pixel_counting", "classical_ml", "cnn_deep_learning", "resnet", "transformer", "siamese_network", "sers_2_0_concept", "sers_imagenet_concept"]`.
+
+### **Data Structure Requirements:**
+
+- **paper_id**: Any internal ID or DOI if no ID is found.
+- **year**: Year of publication (integer).
+- **milestone_category**: Use controlled vocabulary.
+- **method_keywords**: List of specific technical keywords (e.g., "Deep Learning", "Digital SERS", "Poisson Statistics").
+- **is_representative_milestone**: Boolean. True if the paper claims a "first" or "novel" foundational approach.
+- **milestone_reason**: Short description of why this paper is a milestone.
+- **representative_metric**: The primary performance metric that proves the milestone's success (e.g., "LOD of 10 fM", "99% accuracy").
+- **doi**: The DOI string.
+- **evidence_quote**: The exact text from the paper supporting the milestone status and category.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "year": null,
+  "milestone_category": "not reported",
+  "method_keywords": [],
+  "is_representative_milestone": false,
+  "milestone_reason": "not reported",
+  "representative_metric": "not reported",
+  "doi": "not reported",
+  "evidence_quote": "not reported"
+}
+
+### **Paper Content:**
+{content}

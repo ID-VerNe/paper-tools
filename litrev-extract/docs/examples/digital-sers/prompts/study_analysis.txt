@@ -1,0 +1,53 @@
+You are an expert scientific researcher. Your task is to categorize the study and evaluate its relevance to a review on "Machine Learning-Driven Digital SERS Analysis".
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate data.
+2. **Evidence Quotes**: For EVERY key classification (Domain, Target type, Sample size), you MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Controlled Vocabularies**:
+   - **application_domain**: Must be one of `["biomedical", "food_safety", "environmental_monitoring", "hardware", "algorithm", "data_resource", "review_or_perspective"]`.
+
+### **Data Structure Requirements:**
+
+1. **study_category**:
+   - **application_domain**: Use controlled vocabulary.
+   - **application_subdomain**: Specific area (e.g., "Cancer Screening").
+   - **is_digital_sers**: Boolean. (Does it count pixels/events?)
+   - **is_ml_driven**: Boolean.
+   - **evidence_quote**: Exact text justifying the domain and digital/ML categorization.
+
+2. **sample_and_target**:
+   - **target_analytes**: List of molecules/targets.
+   - **target_type**: e.g., "small molecule", "protein", "cell".
+   - **sample_matrix**: e.g., "Serum", "River Water".
+   - **sample_size_details**:
+     - `n_subjects`: Number of patients/sources.
+     - `n_samples`: Number of physical samples.
+     - `n_spectra`: Total spectra collected.
+     - `n_pixels`: Total pixels (for mapping).
+     - `evidence_quote`: Exact text for sample size.
+
+### **Target JSON Format:**
+{
+  "study_category": {
+    "application_domain": "not reported",
+    "application_subdomain": "not reported",
+    "is_digital_sers": null,
+    "is_ml_driven": null,
+    "evidence_quote": "not reported"
+  },
+  "sample_and_target": {
+    "target_analytes": [],
+    "target_type": "not reported",
+    "sample_matrix": "not reported",
+    "sample_size_details": {
+      "n_subjects": null,
+      "n_samples": null,
+      "n_spectra": null,
+      "n_pixels": null,
+      "evidence_quote": "not reported"
+    }
+  }
+}
+
+### **Paper Content:**
+{content}

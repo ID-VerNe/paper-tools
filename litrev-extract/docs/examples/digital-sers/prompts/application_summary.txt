@@ -1,0 +1,89 @@
+You are an expert scientific researcher specializing in the practical applications of SERS and Machine Learning. Your task is to extract detailed information regarding the application domain, target analytes, sample matrices, and performance metrics.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If a field is not explicitly mentioned, use `null` for numbers and `"not reported"` for strings.
+2. **Evidence Quote**: You MUST provide the exact sentence from the paper that defines the application or the primary performance result.
+3. **Controlled Vocabularies**:
+   - **application_domain**: Must be one of `["biomedical", "food_safety", "environmental_monitoring"]`.
+   - **application_subdomain**: 
+     - Biomedical: `["liquid_biopsy", "oncology", "pathogen_detection", "poct", "autoimmune_disease", "cardiovascular_disease", "neurological_disease", "drug_response", "extracellular_vesicles", "circulating_tumor_cells", "nucleic_acid_detection"]`.
+     - Food Safety: `["pesticide_residue", "mycotoxin", "food_adulteration", "foodborne_pathogen", "additive_or_contaminant", "freshness_or_quality"]`.
+     - Environmental: `["microplastics", "wastewater_source_tracking", "voc_detection", "organic_pollutants", "environmental_pathogens", "water_quality", "soil_pollution", "air_monitoring"]`.
+
+### **Data Structure Requirements:**
+
+- **paper_id**: Any internal ID or DOI.
+- **application_domain**: Use controlled vocabulary.
+- **application_subdomain**: Use controlled vocabulary based on domain.
+- **target**: List of specific target analytes (e.g., ["Glucose", "miR-21"]).
+- **target_type**: Categorization of target (e.g., "Small molecule", "Protein", "Cell", "Nucleic acid").
+- **sample_matrix**: List of backgrounds (e.g., ["Serum", "Milk", "Tap water"]).
+- **real_sample_type**: If applicable, describe the real samples used (e.g., "Human plasma", "Apple skin"). Use "None" if only spiked/buffer samples.
+- **sample_size**:
+  - `subjects`: Number of biological donors.
+  - `clinical_samples`: Number of clinical specimens.
+  - `environmental_samples`: Number of environmental samples.
+  - `food_samples`: Number of food samples.
+  - `spectra`: Total spectra used in application validation.
+- **sers_strategy**: SERS approach (e.g., "Label-free", "SERS-tag", "Microfluidic-SERS").
+- **digital_strategy**: Digital approach (e.g., "Analog", "Digital Counting", "ML-based").
+- **ml_algorithm**: The primary model used (e.g., "CNN", "SVM").
+- **task_type**: List of task types (e.g., ["classification", "quantification"]).
+- **reported_performance**:
+  - `lod`: Limit of Detection string.
+  - `linear_range`: Linear range string.
+  - `accuracy`: Numerical (0.0 - 1.0).
+  - `sensitivity`: Numerical (0.0 - 1.0).
+  - `specificity`: Numerical (0.0 - 1.0).
+  - `auc`: Numerical.
+  - `r2`: Numerical.
+  - `rmse`: Numerical.
+  - `recovery`: String or list (e.g., "95-105%").
+  - `rsd`: Relative Standard Deviation string.
+- **comparison_method**: Reference method compared against (e.g., "HPLC", "ELISA", "None").
+- **claimed_advantage**: Primary benefit stated by authors.
+- **translation_readiness**: Inference on how close this is to real-world use ("Proof-of-concept", "Pre-clinical", "Pilot study").
+- **evidence_quote**: Key text defining the application and success.
+- **doi**: DOI string.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "application_domain": "not reported",
+  "application_subdomain": "not reported",
+  "target": [],
+  "target_type": "not reported",
+  "sample_matrix": [],
+  "real_sample_type": "not reported",
+  "sample_size": {
+    "subjects": null,
+    "clinical_samples": null,
+    "environmental_samples": null,
+    "food_samples": null,
+    "spectra": null
+  },
+  "sers_strategy": "not reported",
+  "digital_strategy": "not reported",
+  "ml_algorithm": "not reported",
+  "task_type": [],
+  "reported_performance": {
+    "lod": "not reported",
+    "linear_range": "not reported",
+    "accuracy": null,
+    "sensitivity": null,
+    "specificity": null,
+    "auc": null,
+    "r2": null,
+    "rmse": null,
+    "recovery": "not reported",
+    "rsd": "not reported"
+  },
+  "comparison_method": "not reported",
+  "claimed_advantage": "not reported",
+  "translation_readiness": "not reported",
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

@@ -1,0 +1,56 @@
+You are an expert scientific researcher specializing in SERS data analysis and machine learning validation. Your task is to extract details regarding data preprocessing, augmentation, and model validation protocols.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate data.
+2. **Evidence Quotes**: For EVERY key step (Augmentation methods, Validation strategy, Split ratio), you MUST provide the exact sentence from the paper as an `evidence_quote`.
+
+### **Data Structure Requirements:**
+
+1. **data_processing**:
+   - **preprocessing_steps**: List of all steps.
+   - **baseline_correction**: Method used.
+   - **normalization**: Type used.
+   - **augmentation_details**:
+     - `used`: Boolean.
+     - `methods`: List of methods (e.g., Gaussian noise, Mixup).
+     - `multiplier`: The factor by which the dataset was increased (e.g., 10).
+     - `validation_method`: e.g., t-SNE, PCA.
+     - `evidence_quote`: Exact text for augmentation.
+
+2. **model_validation**:
+   - **validation_strategy**:
+     - `split_ratio`: e.g., "80:20".
+     - `cross_validation`: e.g., "5-fold".
+     - `external_validation`: Boolean.
+     - `independent_test_sets`: List of descriptions (e.g., "separate batch", "different instrument").
+     - `evidence_quote`: Exact text for validation strategy.
+   - **metrics_reported**: List of metric names found in the study.
+
+### **Target JSON Format:**
+{
+  "data_processing": {
+    "preprocessing_steps": [],
+    "baseline_correction": "not reported",
+    "normalization": "not reported",
+    "augmentation_details": {
+      "used": null,
+      "methods": [],
+      "multiplier": null,
+      "validation_method": "not reported",
+      "evidence_quote": "not reported"
+    }
+  },
+  "model_validation": {
+    "validation_strategy": {
+      "split_ratio": "not reported",
+      "cross_validation": "not reported",
+      "external_validation": null,
+      "independent_test_sets": [],
+      "evidence_quote": "not reported"
+    },
+    "metrics_reported": []
+  }
+}
+
+### **Paper Content:**
+{content}

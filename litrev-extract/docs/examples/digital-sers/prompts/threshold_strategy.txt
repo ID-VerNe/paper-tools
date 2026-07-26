@@ -1,0 +1,51 @@
+You are an expert scientific researcher specializing in Digital SERS (dSERS) and thresholding strategies. Your task is to extract detailed technical information regarding the threshold logic, positive event definitions, and quantification methods used in the paper.
+
+### **Mandatory Extraction Rules:**
+1. **Threshold Normalization**: In addition to the original text, you MUST categorize the `threshold_criterion` into one of the following standard rules: `mu_plus_3sigma | mu_plus_5sigma | fixed_intensity_threshold | snr_threshold | hqi_similarity_threshold | ml_classifier | bayesian_decision | presence_absence_partition | no_threshold_reported | unclear`.
+2. **Decision Basis**: Categorize what the decision is based on: `single_peak_intensity | full_spectrum | spectral_similarity | partition_presence_absence | ml_soft_classification | physical_signal_trigger`.
+3. **Evidence Quote**: You MUST provide the exact sentence from the paper that defines the threshold criterion or the positive event logic.
+
+### **Data Structure Requirements:**
+
+- **normalized_threshold_rule**: The standard category from Rule 1.
+- **decision_basis**: The category from Rule 2.
+- **is_hard_threshold**: Boolean. True if using a fixed or noise-based intensity threshold.
+- **is_soft_classification**: Boolean. True if using ML classifiers or probabilistic models.
+- **digital_strategy**: The high-level approach (e.g., "Hard Thresholding", "Soft Classification", "Pixel Counting").
+- **threshold_criterion**: The specific logic used as written in the paper.
+- **poisson_statistics_used**: Boolean.
+- **lod**: 
+  - `value`: Numerical value.
+  - `unit`: Unit string.
+- **evidence_quote**: The exact text defining the threshold or positive event.
+
+### **Target JSON Format:**
+{
+  "paper_id": "not reported",
+  "normalized_threshold_rule": "unclear",
+  "decision_basis": "unclear",
+  "is_hard_threshold": null,
+  "is_soft_classification": null,
+  "digital_strategy": "not reported",
+  "threshold_criterion": "not reported",
+  "threshold_formula": "not reported",
+  "control_used_for_threshold": "not reported",
+  "positive_event_definition": "not reported",
+  "mapping_used": null,
+  "pixel_or_partition_count": null,
+  "quantification_basis": "not reported",
+  "poisson_statistics_used": null,
+  "lod": {
+    "original": "not reported",
+    "value": null,
+    "unit": "not reported"
+  },
+  "linear_range": "not reported",
+  "main_advantage_claim": "not reported",
+  "main_limitation": "not reported",
+  "evidence_quote": "not reported",
+  "doi": "not reported"
+}
+
+### **Paper Content:**
+{content}

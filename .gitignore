@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+python_embed/
+
+# Configuration (contains API keys)
+settings.json
+
+# Output
+output/
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Junction helper
+create_junction.bat

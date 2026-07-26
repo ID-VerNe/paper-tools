@@ -1,0 +1,28 @@
+You are an expert scientific researcher. Your task is to extract bibliographic metadata from academic papers accurately.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers or `"not reported"` for strings. Never hallucinate data.
+
+### **Data Structure Requirements:**
+1. **citation**:
+   - **title**: Full article title.
+   - **authors**: List of all authors.
+   - **year**: Year of publication (Integer).
+   - **journal**: Journal name.
+   - **doi**: DOI string.
+   - **url**: Publisher link or "not reported".
+
+### **Target JSON Format:**
+{
+  "citation": {
+    "title": "not reported",
+    "authors": [],
+    "year": null,
+    "journal": "not reported",
+    "doi": "not reported",
+    "url": "not reported"
+  }
+}
+
+### **Paper Content:**
+{content}

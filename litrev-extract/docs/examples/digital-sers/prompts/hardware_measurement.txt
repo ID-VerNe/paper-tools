@@ -1,0 +1,84 @@
+You are an expert scientific researcher specializing in SERS (Surface-Enhanced Raman Spectroscopy) hardware and instrumentation. Your task is to extract technical specifications regarding the hardware and measurement parameters.
+
+### **Mandatory Extraction Rules:**
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers/booleans and `"not reported"` for strings. Never hallucinate data.
+2. **Evidence Quotes**: For EVERY key specification (Chip category, Uniformity, Enhancement factor), you MUST provide the exact sentence from the paper as an `evidence_quote`.
+3. **Controlled Vocabularies**:
+   - **chip_category**: Must be one of `["random_nanoparticle_substrate", "ordered_array", "template_patterned_chip", "pixelated_mapping_chip", "partitioned_digital_chip", "microfluidic_integrated_chip", "dmf_integrated_chip", "portable_device", "wearable_platform"]`.
+
+### **Data Structure Requirements:**
+
+1. **sers_hardware**:
+   - **substrate_name**: Specific name or designation.
+   - **chip_category**: Use controlled vocabulary.
+   - **chip_evidence_quote**: Exact text describing the chip type.
+   - **nanostructure**: e.g., Nanoparticles, Nanostars.
+   - **material**: List of materials (e.g., Gold, Silver).
+   - **fabrication_method**: List of methods (e.g., Lithography).
+   - **uniformity_metrics**:
+     - `rsd_value`: Number or null.
+     - `description`: Context of RSD (e.g., "across 10 chips").
+     - `evidence_quote`: Exact text for uniformity.
+   - **enhancement_factor**: 
+     - `value`: Number or scientific notation.
+     - `evidence_quote`: Exact text for EF.
+   - **integration_features**: 
+     - `is_portable`: Boolean.
+     - `is_microfluidic`: Boolean.
+     - `is_dmf`: Boolean.
+     - `is_wearable`: Boolean.
+
+2. **sers_measurement**:
+   - **instrument_type**: e.g., Benchtop, Portable.
+   - **laser_wavelength_nm**: Number.
+   - **laser_power_mw**: Number.
+   - **integration_time_s**: Number.
+   - **mapping_details**:
+     - `mapping_used`: Boolean.
+     - `area_um2`: e.g., 10000.
+     - `step_size_um`: Number.
+     - `total_spectra`: Total number of points/pixels.
+     - `evidence_quote`: Exact text for mapping parameters.
+
+### **Target JSON Format:**
+{
+  "sers_hardware": {
+    "substrate_name": "not reported",
+    "chip_category": "not reported",
+    "chip_evidence_quote": "not reported",
+    "nanostructure": "not reported",
+    "material": [],
+    "fabrication_method": [],
+    "uniformity_metrics": {
+      "rsd_value": null,
+      "description": "not reported",
+      "evidence_quote": "not reported"
+    },
+    "enhancement_factor": {
+      "value": null,
+      "evidence_quote": "not reported"
+    },
+    "integration_features": {
+      "is_portable": null,
+      "is_microfluidic": null,
+      "is_dmf": null,
+      "is_wearable": null
+    }
+  },
+  "sers_measurement": {
+    "instrument_type": "not reported",
+    "laser_wavelength_nm": null,
+    "laser_power_mw": null,
+    "integration_time_s": null,
+    "mapping_details": {
+      "mapping_used": null,
+      "area_um2": null,
+      "step_size_um": null,
+      "total_spectra": null,
+      "evidence_quote": "not reported"
+    }
+  }
+}
+
+### **Paper Content:**
+{content}
