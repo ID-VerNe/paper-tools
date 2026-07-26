@@ -2,10 +2,16 @@
 
 Download academic papers from Sci-Hub by DOI, with automatic mirror fallback and retry logic.
 
-## 依赖
+## 依赖 & 安装
+
+本项目使用 [uv](https://docs.astral.sh/uv/) 管理依赖。
 
 ```bash
-pip install requests beautifulsoup4
+# 安装依赖
+uv sync
+
+# 或手动添加依赖
+uv add requests beautifulsoup4
 ```
 
 ## 使用方法

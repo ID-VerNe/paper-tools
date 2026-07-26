@@ -4,8 +4,10 @@
 
 ## 安装
 
+本项目使用 [uv](https://docs.astral.sh/uv/) 管理依赖。
+
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 **依赖:** 零第三方依赖（仅标准库：`urllib`, `json`, `re`, `threading`, `concurrent.futures`）

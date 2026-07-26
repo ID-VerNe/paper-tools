@@ -2,6 +2,28 @@
 <!-- markdownlint-disable html -->
 <!-- markdownlint-disable no-duplicate-header -->
 
+> **本地封装版** — 以下为原始官方 README。本仓库中的 `ocr_engine.py` / `ocr_gui.py` / `ocr_cli.py` 是对 DeepSeek-OCR API 的本地封装，用于 PDF/EPUB 转 Markdown，无需本地 GPU。
+
+### 本地封装使用
+
+```bash
+# 安装依赖
+uv sync
+
+# CLI 模式（单文件）
+uv run python ocr_cli.py input.pdf
+
+# CLI 模式（批量目录）
+uv run python ocr_cli.py ./papers/ --output ./output/
+
+# GUI 模式
+uv run python ocr_gui.py
+```
+
+首次使用前，请将 API Key 填入 `settings.json` 或通过 `--api-key` 参数传入。
+
+---
+
 
 <div align="center">
   <img src="assets/logo.svg" width="60%" alt="DeepSeek AI" />

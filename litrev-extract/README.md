@@ -6,8 +6,19 @@
 
 ## Quick Start
 
+### 本地开发（使用 uv）
+
 ```bash
-# Install
+# 安装依赖
+uv sync
+
+# 查看可用命令
+uv run litrev --help
+```
+
+### 作为 PyPI 包安装
+
+```bash
 pip install litrev-extract
 
 # Scaffold a new review project

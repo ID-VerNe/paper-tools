@@ -1,0 +1,9 @@
+[project]
+name = "scihub"
+version = "0.1.0"
+description = "Sci-Hub paper downloader with automatic mirror fallback and retry logic"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "requests>=2.34.2",
+]
