@@ -30,6 +30,15 @@ FUZZY_SCORE_YEAR_NEAR = 20
 FUZZY_SCORE_KEYWORD_MAX = 20
 FUZZY_SEARCH_ROWS = 5
 
+# OCR 文本提取
+OCR_SUCCESS_THRESHOLD = 0.85          # 标题相似度 → auto-rename
+OCR_MIN_TITLE_LENGTH = 15
+OCR_DEFAULT_DIR = None                # 子类自动探测 DeepSeek-OCR 目录
+OCR_TIMEOUT = 600                     # 单文件 OCR 超时（秒）
+
+# 缓存
+CACHE_DEFAULT_FILENAME = "pdf_doi_cache.json"
+
 # 不太可能是作者姓氏的常见英文词
 FUZZY_COMMON_WORDS = frozenset({
     "the", "and", "for", "with", "from", "study", "based", "analysis",

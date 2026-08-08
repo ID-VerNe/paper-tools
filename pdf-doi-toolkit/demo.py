@@ -32,7 +32,7 @@ matcher.run_crossref_check()
 
 # 第 3 步：重命名匹配的
 renamed = matcher.rename_matched()
-print(f"已重命名: {renamed} 篇")
+print(f"已重命名: {renamed['renamed']} 篇, 去重: {renamed['deduped']} 篇, 跳过: {renamed['skipped']} 篇")
 
 # 第 4 步：保存报告
 matcher.save_report()

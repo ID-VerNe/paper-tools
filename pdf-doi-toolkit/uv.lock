@@ -3,6 +3,6 @@ revision = 3
 requires-python = ">=3.10"
 
 [[package]]
-name = "article2bib"
-version = "0.1.0"
-source = { virtual = "." }
+name = "pdf-doi-toolkit"
+version = "1.1.0"
+source = { editable = "." }

@@ -20,8 +20,10 @@ DOIMatcher — PDF DOI 匹配主引擎。
 
 import os
 
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from .cache import DOICache
 from .config import (
     CROSSREF_CONCURRENCY,
     FUZZY_AUTO_RENAME_THRESHOLD,
@@ -34,6 +36,7 @@ from .config import (
 from .crossref import CrossRefClient
 from .fuzzy import FilenameParser
 from .scanner import PDFScanner
+from .title_extractor import TitleExtractor
 from .utils import (
     authors_match,
     doi_safe,
@@ -52,19 +55,31 @@ class DOIMatcher:
     """
 
     def __init__(self, summary_dir: str, output_dir: str = None,
-                 crossref_client: CrossRefClient = None):
+                 crossref_client: CrossRefClient = None,
+                 cache_path: str = None, no_cache: bool = False,
+                 ocr_dir: str = None):
         self.summary_dir = summary_dir
         self.output_dir = output_dir or summary_dir
         self.cr = crossref_client or CrossRefClient()
         self.scanner = PDFScanner(summary_dir)
 
-        self.entries = []    # 所有扫描到的条目
-        self.results = []    # CrossRef 查询结果
+        self.entries = []
+        self.results = []
 
-        # 分类缓存
         self._cat_a = []
         self._cat_b = []
         self._cat_c = []
+
+        # 缓存
+        self._cache_path = None
+        if not no_cache and cache_path:
+            self._cache_path = cache_path
+        self.cache = DOICache(self._cache_path)
+        self.cache.load()
+        self._cache_hits = 0  # 本次运行的实际缓存命中计数
+
+        # OCR
+        self._title_extractor = TitleExtractor(ocr_dir)
 
     # ------------------------------------------------------------------
     #  扫描
@@ -112,7 +127,9 @@ class DOIMatcher:
             with ThreadPoolExecutor(max_workers=concurrency) as ex:
                 futures = {ex.submit(self._check_one, e): e for e in self._cat_a}
                 for i, f in enumerate(as_completed(futures), 1):
-                    self.results.append(f.result())
+                    res = f.result()
+                    self.results.append(res)
+                    self._cache_result(res)
                     if i % 10 == 0 or i == len(self._cat_a):
                         print(f"  进度: {i}/{len(self._cat_a)}")
 
@@ -120,7 +137,10 @@ class DOIMatcher:
         if self._cat_b:
             print(f"CrossRef B 组（有 title 无 author）: {len(self._cat_b)} 篇...")
             for e in self._cat_b:
-                res = self.cr.search_by_title(e["json_title"])
+                res = self._check_with_cache(
+                    e["pdf_name"],
+                    lambda: self.cr.search_by_title(e["json_title"]),
+                )
                 self.results.append({
                     "pdf_name": e["pdf_name"],
                     "final_title": e["json_title"],
@@ -131,6 +151,7 @@ class DOIMatcher:
                     "note": f"found: {res['doi']} (no author verify)" if res["doi"]
                             else (res.get("note") or "not_found"),
                 })
+                self._cache_result(self.results[-1])
 
         return self.results
 
@@ -146,10 +167,25 @@ class DOIMatcher:
         title = entry["json_title"]
         author = entry["json_author"]
 
+        # 缓存优先
+        cached = self.cache.get(entry["pdf_name"])
+        if cached and cached.get("doi"):
+            self._cache_hits += 1
+            result = dict(entry)
+            result["final_title"] = result.get("json_title", "")
+            result["final_author"] = result.get("json_author", "")
+            result["cr_doi"] = cached["doi"]
+            result["cr_author"] = cached.get("author")
+            result["match"] = cached.get("match", False)
+            result["note"] = cached.get("note", "ok")
+            return result
+
         # 第 1 步：正常查询
         res = self.cr.search_by_title(title, author)
 
         result = dict(entry)
+        result["final_title"] = result.get("json_title", "")
+        result["final_author"] = result.get("json_author", "")
         result["cr_doi"] = res["doi"]
         result["cr_author"] = res["author"]
         result["match"] = False
@@ -182,6 +218,32 @@ class DOIMatcher:
             result["note"] = res.get("note", "not_found")
 
         return result
+
+    def _check_with_cache(self, pdf_name: str, api_call: callable) -> dict:
+        """
+        缓存优先的 CrossRef 查询。
+
+        参数:
+            pdf_name: 文件名（缓存键）
+            api_call: 无参数可调用，返回 {"doi": ..., "author": ..., ...}
+
+        返回:
+            dict — 与 api_call 相同的结构
+        """
+        cached = self.cache.get(pdf_name)
+        if cached and cached.get("doi"):
+            return cached
+        res = api_call()
+        if self._cache_path and res.get("doi"):
+            self.cache.set(pdf_name, {
+                "doi": res["doi"],
+                "author": res.get("author"),
+                "title": res.get("title"),
+                "note": res.get("note"),
+                "match": bool(res.get("doi")),
+                "source": "crossref",
+            })
+        return res
 
     # ------------------------------------------------------------------
     #  .s001 批量处理
@@ -250,6 +312,12 @@ class DOIMatcher:
             safe = doi_safe(doi)
             dst = os.path.join(self.summary_dir, f"{safe}.pdf")
 
+            # 源和目标相同 → 已正确命名，跳过
+            if src == dst:
+                print(f"  [SKIP] {pdf_name[:50]} → 已正确命名")
+                results.append({"pdf_name": pdf_name, "doi": doi, "success": True})
+                continue
+
             try:
                 if os.path.exists(dst):
                     os.remove(src)
@@ -258,6 +326,12 @@ class DOIMatcher:
                     os.rename(src, dst)
                     print(f"  [RENAME] {pdf_name[:50]} → {safe}.pdf")
                 results.append({"pdf_name": pdf_name, "doi": doi, "success": True})
+                self.cache.set(pdf_name, {
+                    "doi": doi,
+                    "note": "manual_verify",
+                    "match": True,
+                    "source": "manual",
+                })
             except PermissionError as e:
                 print(f"  [LOCKED] {pdf_name[:50]} — 文件被占用")
                 results.append({"pdf_name": pdf_name, "doi": doi, "success": False})
@@ -305,6 +379,24 @@ class DOIMatcher:
                 })
                 continue
 
+            # 缓存优先
+            cached = self.cache.get(pdf_name)
+            if cached and cached.get("doi"):
+                self._cache_hits += 1
+                score = cached.get("fuzzy_score", 0)
+                auto = score >= FUZZY_AUTO_RENAME_THRESHOLD
+                fuzzy_results.append({
+                    "pdf_name": pdf_name,
+                    "final_title": cached.get("title", ""),
+                    "final_author": cached.get("author", ""),
+                    "cr_doi": cached["doi"],
+                    "cr_author": cached.get("author", ""),
+                    "match": cached.get("match", auto),
+                    "note": f"fuzzy: score={score} (cached)",
+                    "fuzzy_score": score,
+                })
+                continue
+
             res = self.cr.search_by_fuzzy(
                 author=parsed.author or None,
                 year=parsed.year,
@@ -314,7 +406,7 @@ class DOIMatcher:
             if res["doi"]:
                 score = self._compute_fuzzy_score(parsed, res)
                 auto = score >= FUZZY_AUTO_RENAME_THRESHOLD
-                fuzzy_results.append({
+                result = {
                     "pdf_name": pdf_name,
                     "final_title": res.get("title", ""),
                     "final_author": res.get("author", ""),
@@ -323,7 +415,10 @@ class DOIMatcher:
                     "match": auto,
                     "note": f"fuzzy: score={score}" + (" (auto)" if auto else " (review)"),
                     "fuzzy_score": score,
-                })
+                    "source": "fuzzy",
+                }
+                fuzzy_results.append(result)
+                self._cache_result(result)
                 status = "AUTO" if auto else "REVIEW"
                 print(f"  [{status}] {i}/{len(to_process)} {pdf_name[:40]} -> {res['doi']}  score={score}")
             else:
@@ -392,10 +487,144 @@ class DOIMatcher:
         return min(score, 100)
 
     # ------------------------------------------------------------------
+    #  OCR 标题提取兜底
+    # ------------------------------------------------------------------
+
+    def run_ocr_fallback(self) -> list:
+        """
+        对剩余未匹配的 PDF 调 DeepSeek-OCR 提取标题，再查 CrossRef。
+
+        在 run_crossref_check() / run_fuzzy_fallback() 之后调用。
+        OCR 是付费 API，只处理确认无 title 的条目。
+        """
+        to_process = self._get_unmatched_entries()
+        if not to_process:
+            return []
+
+        if not self._title_extractor._locate_ocr_dir():
+            print("[OCR] DeepSeek-OCR 目录未找到，跳过 OCR 兜底")
+            for e in to_process:
+                self._mark_ocr_failed(e, "ocr_dir_not_found")
+            return []
+
+        print(f"[OCR] 调 DeepSeek-OCR 提取标题: {len(to_process)} 篇...")
+
+        ocr_results = []
+        for i, entry in enumerate(to_process, 1):
+            pdf_name = entry["pdf_name"]
+            pdf_path = os.path.join(self.summary_dir, pdf_name)
+
+            if not os.path.exists(pdf_path):
+                self._mark_ocr_failed(entry, "pdf_missing")
+                continue
+
+            ex = self._title_extractor.extract_title(pdf_path)
+            title = ex.get("title")
+            if not title:
+                self._mark_ocr_failed(entry, ex.get("note", "ocr_failed"))
+                print(f"  [SKIP] {i}/{len(to_process)} {pdf_name[:40]} -> {ex.get('note')}")
+                continue
+
+            res = self.cr.search_by_title(title)
+            result = {
+                "pdf_name": pdf_name,
+                "final_title": title,
+                "final_author": "",
+                "cr_doi": res.get("doi"),
+                "cr_author": res.get("author"),
+                "match": bool(res.get("doi")),
+                "note": f"ocr: found {res.get('doi')}" if res.get("doi")
+                        else f"ocr: {res.get('note', 'not_found')}",
+                "source": "ocr",
+            }
+            ocr_results.append(result)
+            self._cache_result(result)
+            if res.get("doi"):
+                print(f"  [OK] {i}/{len(to_process)} {pdf_name[:40]} -> {res['doi']}")
+            else:
+                print(f"  [SKIP] {i}/{len(to_process)} {pdf_name[:40]} -> not found")
+
+        self.results.extend(ocr_results)
+        return ocr_results
+
+    def _get_unmatched_entries(self) -> list:
+        """收集所有尚未匹配到 DOI 的条目（Cat C + 失败的 Cat B）。"""
+        matched_pdfs = {
+            r["pdf_name"] for r in self.results if r.get("cr_doi")
+        }
+        to_process = [
+            e for e in self._cat_c if e["pdf_name"] not in matched_pdfs
+        ]
+        for entry in self._cat_b:
+            result = self._find_result(entry["pdf_name"])
+            if result and not result.get("cr_doi"):
+                to_process.append(entry)
+        return to_process
+
+    def _mark_ocr_failed(self, entry: dict, note: str):
+        """为 OCR 处理失败的条目标记。"""
+        self.results.append({
+            "pdf_name": entry["pdf_name"],
+            "final_title": "",
+            "final_author": "",
+            "cr_doi": None, "cr_author": None,
+            "match": False,
+            "note": f"ocr: {note}",
+        })
+
+    # ------------------------------------------------------------------
+    #  缓存辅助
+    # ------------------------------------------------------------------
+
+    def _cache_result(self, result: dict):
+        """把查询结果写入缓存。"""
+        if not self._cache_path:
+            return
+        self.cache.set(result["pdf_name"], {
+            "doi": result.get("cr_doi"),
+            "title": result.get("final_title"),
+            "author": result.get("cr_author") or result.get("final_author"),
+            "note": result.get("note"),
+            "match": result.get("match", False),
+            "fuzzy_score": result.get("fuzzy_score"),
+            "source": result.get("source", "crossref"),
+        })
+
+    def save_cache(self):
+        """持久化缓存到磁盘。"""
+        self.cache.save()
+        if self._cache_path:
+            print(f"缓存已保存: {self._cache_path}")
+
+    # ------------------------------------------------------------------
+    #  冲突检测
+    # ------------------------------------------------------------------
+
+    def _get_conflicts(self, results: list = None) -> list:
+        """
+        检测多个 PDF 映射到同一 DOI 的冲突。
+
+        返回: list[dict] — 每条含 doi 和映射到该 DOI 的 pdf 列表
+        """
+        if results is None:
+            results = self.results
+
+        groups = defaultdict(list)
+        for r in results:
+            doi = r.get("cr_doi")
+            if doi:
+                groups[doi].append(r["pdf_name"])
+
+        return [
+            {"doi": doi, "pdfs": pdfs}
+            for doi, pdfs in groups.items() if len(pdfs) > 1
+        ]
+
+    # ------------------------------------------------------------------
     #  重命名
     # ------------------------------------------------------------------
 
-    def rename_matched(self, results: list = None) -> int:
+    def rename_matched(self, results: list = None) -> dict:
         """
         将所有匹配的 PDF 重命名为 DOI 格式。
 
@@ -403,7 +632,7 @@ class DOIMatcher:
             results: 待处理的匹配列表（默认用 self.results 中 match=True 的）
 
         返回:
-            成功处理的数量
+            {"renamed": int, "conflicts": list, "deduped": int, "skipped": int}
         """
         if results is None:
             results = self.results
@@ -411,9 +640,19 @@ class DOIMatcher:
         matched = [r for r in results if r.get("match")]
         if not matched:
             print("没有匹配的条目可重命名。")
-            return 0
+            return {"renamed": 0, "conflicts": [], "deduped": 0, "skipped": 0}
 
-        count = 0
+        # 第 1 步：检测 DOI 冲突
+        conflicts = self._get_conflicts(matched)
+        conflict_dois = {c["doi"] for c in conflicts}
+        conflict_pdfs = {pdf for c in conflicts for pdf in c["pdfs"]}
+
+        if conflicts:
+            print(f"检测到 {len(conflicts)} 组分 DOI 冲突，跳过冲突项:")
+
+        named = 0
+        deduped = 0
+        skipped = 0
         for r in matched:
             doi = r.get("cr_doi")
             if not doi:
@@ -423,21 +662,39 @@ class DOIMatcher:
             if not os.path.exists(src):
                 continue
 
+            # 冲突项跳过
+            if doi in conflict_dois or r["pdf_name"] in conflict_pdfs:
+                skipped += 1
+                continue
+
             safe = doi_safe(doi)
             dst = os.path.join(self.summary_dir, f"{safe}.pdf")
+
+            # 源和目标相同 → 已正确命名，跳过
+            if src == dst:
+                named += 1
+                continue
 
             try:
                 if os.path.exists(dst):
                     os.remove(src)
-                    print(f"  [DELETE] {r['pdf_name'][:50]} (目标已存在)")
+                    print(f"  [DEDUP] {r['pdf_name'][:50]} (目标已存在)")
+                    deduped += 1
                 else:
                     os.rename(src, dst)
                     print(f"  [RENAME] {r['pdf_name'][:50]} → {safe}.pdf")
-                count += 1
+                    named += 1
+                self.cache.record_rename(r["pdf_name"], f"{safe}.pdf")
             except PermissionError as e:
                 print(f"  [LOCKED] {r['pdf_name'][:50]} — 文件被占用")
+                skipped += 1
 
-        return count
+        return {
+            "renamed": named,
+            "conflicts": conflicts,
+            "deduped": deduped,
+            "skipped": skipped,
+        }
 
     # ------------------------------------------------------------------
     #  报告生成
@@ -455,6 +712,9 @@ class DOIMatcher:
         fuzzy_review = sum(1 for r in fuzzy_entries
                            if r.get("cr_doi") and not r.get("match"))
         fuzzy_skipped = sum(1 for r in fuzzy_entries if not r.get("cr_doi"))
+        ocr_entries = [r for r in self.results if r.get("note", "").startswith("ocr:")]
+        ocr_matched = sum(1 for r in ocr_entries if r.get("match"))
+        ocr_failed = sum(1 for r in ocr_entries if not r.get("cr_doi"))
         return {
             "total_pdfs_scanned": len(self.entries),
             "cat_a": len(self._cat_a),
@@ -470,6 +730,10 @@ class DOIMatcher:
             "fuzzy_matched": fuzzy_matched,
             "fuzzy_needs_review": fuzzy_review,
             "fuzzy_failed": fuzzy_skipped,
+            "ocr_attempted": len(ocr_entries),
+            "ocr_matched": ocr_matched,
+            "ocr_failed": ocr_failed,
+            "cache_hits": self._cache_hits if self._cache_path else 0,
         }
 
     def report(self) -> str:
@@ -563,14 +827,56 @@ class DOIMatcher:
                 )
             lines.append("")
 
+        # OCR 结果
+        ocr_entries = [r for r in self.results if r.get("note", "").startswith("ocr:")]
+        ocr_ok = [r for r in ocr_entries if r.get("match")]
+        ocr_fail = [r for r in ocr_entries if not r.get("cr_doi")]
+
+        if ocr_ok:
+            lines.append(f"## OCR 标题提取匹配: {len(ocr_ok)} 篇\n")
+            lines.append("| # | PDF 名 | 提取标题 | DOI |")
+            lines.append("|---|--------|---------|:---:|")
+            for i, r in enumerate(ocr_ok, 1):
+                lines.append(
+                    f"| {i} | `{r['pdf_name'][:35]}` | "
+                    f"{r.get('final_title','')[:40]} | "
+                    f"`{r['cr_doi']}` |"
+                )
+            lines.append("")
+
+        if ocr_fail:
+            lines.append(f"## OCR 处理失败: {len(ocr_fail)} 篇\n")
+            for r in ocr_fail:
+                lines.append(f"- `{r['pdf_name'][:45]}` — {r.get('note', '?')}")
+            lines.append("")
+
+        # 冲突检测
+        conflicts = self._get_conflicts()
+        if conflicts:
+            lines.append(f"## ⚠️ DOI 冲突: {len(conflicts)} 组\n")
+            lines.append("以下 DOI 被多篇 PDF 映射到，已跳过重命名：\n")
+            for c in conflicts:
+                lines.append(f"- `{c['doi']}`")
+                for pdf in c["pdfs"]:
+                    lines.append(f"  - `{pdf}`")
+            lines.append("")
+
+        # 缓存信息
+        if self._cache_path:
+            lines.append(f"## 缓存\n")
+            lines.append(f"- 缓存文件: `{self._cache_path}`")
+            lines.append(f"- 缓存条目: {len(self.cache)} 条")
+            lines.append("")
+
         return "\n".join(lines)
 
     def save_report(self, path: str = None):
-        """保存 Markdown 报告到文件"""
+        """保存 Markdown 报告到文件，同时持久化缓存。"""
         if path is None:
             path = os.path.join(self.output_dir, "PDF_DOI_匹配报告.md")
         with open(path, "w", encoding="utf-8") as f:
             f.write(self.report())
+        self.save_cache()
         print(f"报告已保存: {path}")
 
     # ------------------------------------------------------------------

@@ -13,6 +13,9 @@ from pdf_doi_toolkit.xmol import XMolFallback
 from pdf_doi_toolkit.fuzzy import FilenameParser, FilenameParseResult
 from pdf_doi_toolkit.matcher import DOIMatcher
 from pdf_doi_toolkit.config import AUTHOR_MATCH_CHAR_THRESHOLD
+from pdf_doi_toolkit.cache import DOICache
+from pdf_doi_toolkit.title_extractor import TitleExtractor
+from pdf_doi_toolkit.main import build_parser
 
 
 def test_utils():
@@ -310,6 +313,188 @@ def test_fuzzy_integration():
 
     print()
 
+def test_title_extractor():
+    print("=== 测试标题提取器 ===")
+
+    # 从 Markdown 提取标题
+    md = """# Quantum Computing
+
+Received: 12 January 2024
+"""
+    # 第一行是 markdown 标题标记，跳过；第二行空；第三行含 "received" 特征词被过滤
+    title = TitleExtractor._extract_title_from_md(md)
+    assert title is None, f"应返回 None (所有前置行被过滤), got {title!r}"
+    print("  ✅ 标题被过滤")
+
+    md2 = """Quantum Computing Advances in 2024
+
+## Abstract
+This paper discusses quantum computing.
+"""
+    title2 = TitleExtractor._extract_title_from_md(md2)
+    assert title2 == "Quantum Computing Advances in 2024", f"Got {title2!r}"
+    print("  ✅ 正常标题提取")
+
+    md3 = """![](images/p0_0.jpg)
+
+Quantum Computing Advances
+"""
+    title3 = TitleExtractor._extract_title_from_md(md3)
+    assert title3 == "Quantum Computing Advances", f"Got {title3!r}"
+    print("  ✅ 图片引用过滤")
+
+    # 空输入
+    assert TitleExtractor._extract_title_from_md("") is None
+    assert TitleExtractor._extract_title_from_md(None) is None
+    print("  ✅ 空输入处理")
+
+    # 定位 OCR 目录（不应崩溃）
+    ex = TitleExtractor()
+    ocr_dir = ex._locate_ocr_dir()
+    # 仓库根下有 DeepSeek-OCR 目录，应能找到
+    assert ocr_dir is not None, "应能自动定位 DeepSeek-OCR 目录"
+    print(f"  ✅ 自动定位 OCR 目录: {ocr_dir}")
+
+    print()
+
+
+def test_cache():
+    print("=== 测试缓存 ===")
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cache_path = os.path.join(tmp, "cache.json")
+
+        # 写入
+        cache = DOICache(cache_path)
+        cache.load()
+        cache.set("Smith_2023.pdf", {
+            "doi": "10.1000/quantum.2023.001",
+            "title": "Quantum Computing",
+            "author": "John Smith",
+            "note": "ok",
+            "match": True,
+        })
+        cache.save()
+        assert os.path.exists(cache_path), "缓存文件应写入磁盘"
+        print("  ✅ 写入缓存")
+
+        # 重新加载
+        cache2 = DOICache(cache_path)
+        entries = cache2.load()
+        assert "Smith_2023.pdf" in entries, "重新加载应包含条目"
+        entry = cache2.get("Smith_2023.pdf")
+        assert entry["doi"] == "10.1000/quantum.2023.001"
+        assert entry["match"] is True
+        print("  ✅ 读回缓存")
+
+        # 不存在的键
+        assert cache2.get("missing.pdf") is None
+        print("  ✅ 缺失键返回 None")
+
+        # 版本不匹配
+        with open(cache_path, "w", encoding="utf-8") as f:
+            f.write('{"version": 999, "entries": {"x.pdf": {"doi": "10.x"}}}')
+        cache3 = DOICache(cache_path)
+        entries3 = cache3.load()
+        assert entries3 == {}, "版本不匹配应丢弃缓存"
+        print("  ✅ 版本不匹配丢弃")
+
+        # 损坏文件
+        with open(cache_path, "w", encoding="utf-8") as f:
+            f.write("{ not valid json")
+        cache4 = DOICache(cache_path)
+        entries4 = cache4.load()
+        assert entries4 == {}, "损坏文件应清空"
+        print("  ✅ 损坏文件清空")
+
+        # 无路径缓存（不持久化）
+        cache5 = DOICache(None)
+        cache5.set("a.pdf", {"doi": "10.x"})
+        assert "a.pdf" in cache5
+        assert cache5.save() is False, "无路径不应保存"
+        print("  ✅ 无路径缓存不持久化")
+
+    print()
+
+
+def test_rename_conflicts():
+    print("=== 测试重命名冲突检测 ===")
+    matcher = DOIMatcher(".")  # 不实际重命名，只测 _get_conflicts
+
+    matcher.results = [
+        {"pdf_name": "a.pdf", "cr_doi": "10.1000/duplicate", "match": True},
+        {"pdf_name": "b.pdf", "cr_doi": "10.1000/duplicate", "match": True},
+        {"pdf_name": "c.pdf", "cr_doi": "10.1000/unique", "match": True},
+    ]
+
+    conflicts = matcher._get_conflicts()
+    assert len(conflicts) == 1, f"应检测到 1 组冲突, got {len(conflicts)}"
+    assert conflicts[0]["doi"] == "10.1000/duplicate"
+    assert set(conflicts[0]["pdfs"]) == {"a.pdf", "b.pdf"}
+    print("  ✅ 冲突检测: 多 PDF 同 DOI")
+
+    # 无冲突
+    matcher.results = [
+        {"pdf_name": "a.pdf", "cr_doi": "10.1000/one", "match": True},
+        {"pdf_name": "b.pdf", "cr_doi": "10.1000/two", "match": True},
+    ]
+    assert matcher._get_conflicts() == []
+    print("  ✅ 无冲突场景")
+
+    # 空结果
+    matcher.results = []
+    assert matcher._get_conflicts() == []
+    print("  ✅ 空结果")
+
+    print()
+
+
+def test_cli_parser():
+    print("=== 测试 CLI 参数解析 ===")
+    parser = build_parser()
+
+    # 必需参数
+    args = parser.parse_args(["--dir", "test_pdfs"])
+    assert args.dir == "test_pdfs"
+    assert args.fuzzy is False
+    assert args.ocr is False
+    assert args.no_cache is False
+    print("  ✅ 基本参数")
+
+    # 全部参数
+    args2 = parser.parse_args([
+        "--dir", "test_pdfs",
+        "--fuzzy", "--ocr",
+        "--ocr-dir", "../DeepSeek-OCR",
+        "--no-cache",
+        "--cache-file", "my_cache.json",
+        "--checklist",
+        "--apply-manual", "manual.json",
+        "--no-rename",
+        "--report", "report.md",
+    ])
+    assert args2.fuzzy is True
+    assert args2.ocr is True
+    assert args2.ocr_dir == "../DeepSeek-OCR"
+    assert args2.no_cache is True
+    assert args2.cache_file == "my_cache.json"
+    assert args2.checklist is True
+    assert args2.apply_manual == "manual.json"
+    assert args2.no_rename is True
+    assert args2.report == "report.md"
+    print("  ✅ 全部参数")
+
+    # 缺少 --dir 应报错
+    try:
+        parser.parse_args([])
+        assert False, "缺少 --dir 应报错"
+    except SystemExit:
+        pass
+    print("  ✅ 缺少 --dir 报错")
+
+    print()
+
 
 if __name__ == "__main__":
     test_utils()
@@ -320,4 +505,8 @@ if __name__ == "__main__":
     test_filename_parser()
     test_fuzzy_score()
     test_fuzzy_integration()
-    print("🎉 所有测试通过！")
+    test_title_extractor()
+    test_cache()
+    test_rename_conflicts()
+    test_cli_parser()
+    print("所有测试通过！")

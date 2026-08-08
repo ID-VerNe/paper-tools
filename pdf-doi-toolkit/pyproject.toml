@@ -1,6 +1,12 @@
 [project]
-name = "article2bib"
-version = "0.1.0"
-description = "Add your description here"
+name = "pdf-doi-toolkit"
+version = "1.1.0"
+description = "PDF DOI 重命名工具包 — 将散乱命名的学术 PDF 重命名为 DOI.pdf 格式"
 requires-python = ">=3.10"
 dependencies = []
+
+[tool.uv]
+package = true
+
+[project.scripts]
+pdf-doi = "pdf_doi_toolkit.main:main"
