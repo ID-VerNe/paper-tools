@@ -37,19 +37,22 @@ from .utils import (
 )
 
 from .crossref import CrossRefClient
+from .fuzzy import FilenameParser, FilenameParseResult
 from .scanner import PDFScanner
 from .sciencedirect import ScienceDirectHandler
 from .xmol import XMolFallback
 from .matcher import DOIMatcher
 
 
-def simple_rename_pipeline(summary_dir: str, output_dir: str = None):
+def simple_rename_pipeline(summary_dir: str, output_dir: str = None,
+                           fuzzy_fallback: bool = False):
     """
     一键执行：扫描 → CrossRef 查询 → 重命名匹配的 → 保存报告。
 
     参数:
         summary_dir: PDF 所在目录
         output_dir: 报告输出目录（默认同 summary_dir）
+        fuzzy_fallback: 是否启用模糊文件名匹配兜底（对 Cat C 和失败 Cat B）
 
     返回:
         DOIMatcher 实例（含匹配结果）
@@ -58,6 +61,8 @@ def simple_rename_pipeline(summary_dir: str, output_dir: str = None):
     matcher.scan_pdfs()
     print(f"扫描完成: {len(matcher.entries)} 篇待处理")
     matcher.run_crossref_check()
+    if fuzzy_fallback:
+        matcher.run_fuzzy_fallback()
     renamed = matcher.rename_matched()
     print(f"重命名: {renamed} 篇")
     matcher.save_report()

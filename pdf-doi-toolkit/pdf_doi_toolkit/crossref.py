@@ -23,6 +23,7 @@ from .config import (
     CROSSREF_REQUEST_DELAY,
     CROSSREF_TIMEOUT,
     DEFAULT_USER_AGENT,
+    FUZZY_SEARCH_ROWS,
 )
 from .utils import authors_match
 
@@ -120,6 +121,79 @@ class CrossRefClient:
         return {"doi": doi, "author": first_author, "title": title, "note": "ok"}
 
     # ------------------------------------------------------------------
+    #  模糊搜索（文件名线索）
+    # ------------------------------------------------------------------
+
+    def search_by_fuzzy(self, author: str = None, year: int = None,
+                        keywords: list = None) -> dict:
+        """
+        用文件名中提取的线索模糊搜索 CrossRef。
+
+        参数:
+            author: 期望的作者姓氏（从文件名解析）
+            year: 期望的年份（从文件名解析）
+            keywords: 关键词列表（从文件名解析）
+
+        返回:
+            {"doi": str|None, "author": str|None, "title": str|None,
+             "year": str|None, "note": str}
+        """
+        if not author and not year and not keywords:
+            return {"doi": None, "author": None, "title": None,
+                    "year": None, "note": "no_clues"}
+
+        url = self._build_fuzzy_search_url(author, year, keywords)
+
+        with self._lock:
+            self._req_count += 1
+
+        for attempt in range(1, self.max_retries + 1):
+            time.sleep(self.request_delay)
+
+            data = self._request(url, attempt, str(keywords or author or ""))
+            if data is None:
+                continue
+
+            items = data.get("message", {}).get("items", [])
+            if not items:
+                return {"doi": None, "author": None, "title": None,
+                        "year": None, "note": "no_results"}
+
+            search_title = " ".join(keywords) if keywords else ""
+            best = self._pick_best(items, search_title, author, expected_year=year)
+            if best["doi"]:
+                return best
+            return {"doi": None, "author": None, "title": None,
+                    "year": None, "note": "no_good_match"}
+
+        return {"doi": None, "author": None, "title": None,
+                "year": None, "note": "retries_exhausted"}
+
+    def _build_fuzzy_search_url(self, author: str = None, year: int = None,
+                                keywords: list = None) -> str:
+        """构建模糊搜索的 CrossRef URL。"""
+        params = {"rows": FUZZY_SEARCH_ROWS}
+        if keywords:
+            params["query.title"] = " ".join(keywords)
+        if author:
+            params["query.author"] = author
+        if year is not None:
+            params["filter"] = f"from-pub-date:{year},until-pub-date:{year}"
+        return f"{CROSSREF_BASE_URL}?{urllib.parse.urlencode(params)}"
+
+    @staticmethod
+    def _extract_year(item: dict) -> int | None:
+        """从 CrossRef 返回项中提取出版年份。"""
+        for date_field in ("published-print", "published-online", "issued", "created"):
+            date_parts = item.get(date_field, {}).get("date-parts", [[]])[0]
+            if date_parts and date_parts[0]:
+                try:
+                    return int(date_parts[0])
+                except (ValueError, TypeError):
+                    continue
+        return None
+
+    # ------------------------------------------------------------------
     #  内部方法
     # ------------------------------------------------------------------
 
@@ -173,13 +247,15 @@ class CrossRefClient:
         return str(titles)
 
     def _pick_best(self, items: list, title: str,
-                   expected_author: str = None) -> dict | None:
+                   expected_author: str = None,
+                   expected_year: int = None) -> dict | None:
         """
         从 CrossRef 返回结果中选最佳匹配。
 
         评分规则:
           - 标题词重叠数（基础分）
           - author 匹配: +50 分（高权，确保 author 优先）
+          - 年份匹配: 精确 +30，差 1 年 +20
         """
         best_score = -1
         best = None
@@ -198,12 +274,22 @@ class CrossRefClient:
             if expected_author and authors_match(expected_author, first_author):
                 score += 50
 
+            # 年份匹配 → 加分
+            if expected_year is not None:
+                item_year = self._extract_year(item)
+                if item_year is not None:
+                    if item_year == expected_year:
+                        score += 30
+                    elif abs(item_year - expected_year) <= 1:
+                        score += 20
+
             if score > best_score:
                 best_score = score
                 best = {
                     "doi": item_doi,
                     "author": first_author,
                     "title": item_title,
+                    "year": str(self._extract_year(item)) if self._extract_year(item) else None,
                     "note": "ok",
                 }
 

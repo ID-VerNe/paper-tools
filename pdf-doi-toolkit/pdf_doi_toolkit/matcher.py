@@ -22,8 +22,17 @@ import os
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .config import CROSSREF_CONCURRENCY
+from .config import (
+    CROSSREF_CONCURRENCY,
+    FUZZY_AUTO_RENAME_THRESHOLD,
+    FUZZY_REVIEW_THRESHOLD,
+    FUZZY_SCORE_AUTHOR,
+    FUZZY_SCORE_YEAR_EXACT,
+    FUZZY_SCORE_YEAR_NEAR,
+    FUZZY_SCORE_KEYWORD_MAX,
+)
 from .crossref import CrossRefClient
+from .fuzzy import FilenameParser
 from .scanner import PDFScanner
 from .utils import (
     authors_match,
@@ -256,6 +265,133 @@ class DOIMatcher:
         return results
 
     # ------------------------------------------------------------------
+    #  模糊文件名匹配兜底
+    # ------------------------------------------------------------------
+
+    def run_fuzzy_fallback(self) -> list:
+        """
+        对 Cat C 和失败 Cat B 执行模糊文件名匹配。
+
+        在 run_crossref_check() 之后调用。
+        评分 >= FUZZY_AUTO_RENAME_THRESHOLD → match=True（自动重命名）
+        评分 >= FUZZY_REVIEW_THRESHOLD     → 生成 x-mol 人工确认清单
+        """
+        to_process = list(self._cat_c)
+
+        for entry in self._cat_b:
+            result = self._find_result(entry["pdf_name"])
+            if result and not result.get("cr_doi"):
+                to_process.append(entry)
+
+        if not to_process:
+            return []
+
+        print(f"模糊文件名匹配: {len(to_process)} 篇...")
+
+        fuzzy_results = []
+        for i, entry in enumerate(to_process, 1):
+            pdf_name = entry["pdf_name"]
+            parsed = FilenameParser.parse(pdf_name)
+
+            if not parsed.year and not parsed.keywords and not parsed.author:
+                fuzzy_results.append({
+                    "pdf_name": pdf_name,
+                    "final_title": "",
+                    "final_author": "",
+                    "cr_doi": None, "cr_author": None,
+                    "match": False,
+                    "note": "fuzzy: insufficient_clues",
+                    "fuzzy_score": 0,
+                })
+                continue
+
+            res = self.cr.search_by_fuzzy(
+                author=parsed.author or None,
+                year=parsed.year,
+                keywords=parsed.keywords or None,
+            )
+
+            if res["doi"]:
+                score = self._compute_fuzzy_score(parsed, res)
+                auto = score >= FUZZY_AUTO_RENAME_THRESHOLD
+                fuzzy_results.append({
+                    "pdf_name": pdf_name,
+                    "final_title": res.get("title", ""),
+                    "final_author": res.get("author", ""),
+                    "cr_doi": res["doi"],
+                    "cr_author": res.get("author", ""),
+                    "match": auto,
+                    "note": f"fuzzy: score={score}" + (" (auto)" if auto else " (review)"),
+                    "fuzzy_score": score,
+                })
+                status = "AUTO" if auto else "REVIEW"
+                print(f"  [{status}] {i}/{len(to_process)} {pdf_name[:40]} -> {res['doi']}  score={score}")
+            else:
+                fuzzy_results.append({
+                    "pdf_name": pdf_name,
+                    "final_title": "",
+                    "final_author": "",
+                    "cr_doi": None, "cr_author": None,
+                    "match": False,
+                    "note": f"fuzzy: {res.get('note', 'not_found')}",
+                    "fuzzy_score": 0,
+                })
+                print(f"  [SKIP] {i}/{len(to_process)} {pdf_name[:40]} -> {res.get('note', 'not_found')}")
+
+        self.results.extend(fuzzy_results)
+
+        # 需要人工确认的 → 生成 x-mol 确认清单
+        review_items = [
+            r for r in fuzzy_results
+            if FUZZY_REVIEW_THRESHOLD <= (r.get("fuzzy_score", 0) or 0) < FUZZY_AUTO_RENAME_THRESHOLD
+        ]
+        if review_items:
+            from .xmol import XMolFallback
+            checklist_path = os.path.join(self.output_dir, "fuzzy_待确认_清单.md")
+            XMolFallback.generate_checklist(review_items, output_path=checklist_path)
+
+        return fuzzy_results
+
+    def _compute_fuzzy_score(self, parsed, cr_result: dict) -> int:
+        """
+        计算模糊匹配的置信度评分 (0-100)。
+
+        评分分量:
+          - 作者匹配 0-50: 文件名作者 vs CrossRef 第一作者
+          - 年份匹配 0-30: 精确=30, 邻近=20
+          - 关键词覆盖 0-20: 关键词在标题中的占比
+        """
+        score = 0
+
+        # 1. 作者匹配
+        if parsed.author and cr_result.get("author"):
+            cr_first = cr_result["author"]
+            cr_surname = cr_first.split()[-1] if cr_first else ""
+            if authors_match(parsed.author, cr_surname):
+                score += FUZZY_SCORE_AUTHOR
+
+        # 2. 年份匹配
+        if parsed.year is not None and cr_result.get("year"):
+            try:
+                cr_year = int(cr_result["year"])
+                if cr_year == parsed.year:
+                    score += FUZZY_SCORE_YEAR_EXACT
+                elif abs(cr_year - parsed.year) <= 1:
+                    score += FUZZY_SCORE_YEAR_NEAR
+            except (ValueError, TypeError):
+                pass
+
+        # 3. 关键词覆盖
+        if parsed.keywords and cr_result.get("title"):
+            title_lower = cr_result["title"].lower()
+            matched = sum(1 for kw in parsed.keywords if kw.lower() in title_lower)
+            if parsed.keywords:
+                ratio = matched / len(parsed.keywords)
+                score += int(ratio * FUZZY_SCORE_KEYWORD_MAX)
+
+        return min(score, 100)
+
+    # ------------------------------------------------------------------
     #  重命名
     # ------------------------------------------------------------------
 
@@ -314,6 +450,11 @@ class DOIMatcher:
             1 for r in self.results
             if not r.get("match") and r.get("cr_doi")
         )
+        fuzzy_entries = [r for r in self.results if r.get("note", "").startswith("fuzzy:")]
+        fuzzy_matched = sum(1 for r in fuzzy_entries if r.get("match"))
+        fuzzy_review = sum(1 for r in fuzzy_entries
+                           if r.get("cr_doi") and not r.get("match"))
+        fuzzy_skipped = sum(1 for r in fuzzy_entries if not r.get("cr_doi"))
         return {
             "total_pdfs_scanned": len(self.entries),
             "cat_a": len(self._cat_a),
@@ -325,6 +466,10 @@ class DOIMatcher:
                 1 for r in self.results if not r.get("cr_doi")
             ),
             "results_checked": len(self.results),
+            "fuzzy_attempted": len(fuzzy_entries),
+            "fuzzy_matched": fuzzy_matched,
+            "fuzzy_needs_review": fuzzy_review,
+            "fuzzy_failed": fuzzy_skipped,
         }
 
     def report(self) -> str:
@@ -386,10 +531,36 @@ class DOIMatcher:
             lines.append("")
 
         if b_items:
-            lines.append(f"## 📋 B 组（无 author）: {len(b_items)} 篇\n")
+            lines.append(f"## B 组（无 author）: {len(b_items)} 篇\n")
             for r in b_items:
                 doi = r.get("cr_doi", "(未找到)")
                 lines.append(f"- `{r['pdf_name'][:45]}` → {doi}")
+            lines.append("")
+
+        # 模糊匹配结果
+        fuzzy_entries = [r for r in self.results if r.get("note", "").startswith("fuzzy:")]
+        fuzzy_high = [r for r in fuzzy_entries if r.get("match")]
+        fuzzy_med = [r for r in fuzzy_entries if r.get("cr_doi") and not r.get("match")]
+
+        if fuzzy_high:
+            lines.append(f"## Fuzzy 高置信度匹配: {len(fuzzy_high)} 篇\n")
+            lines.append("| # | PDF 名 | 匹配标题 | DOI | 评分 |")
+            lines.append("|---|--------|---------|:---:|:---:|")
+            for i, r in enumerate(fuzzy_high, 1):
+                lines.append(
+                    f"| {i} | `{r['pdf_name'][:35]}` | "
+                    f"{r.get('final_title','')[:40]} | "
+                    f"`{r['cr_doi']}` | {r.get('fuzzy_score',0)} |"
+                )
+            lines.append("")
+
+        if fuzzy_med:
+            lines.append(f"## Fuzzy 需人工确认: {len(fuzzy_med)} 篇\n")
+            for r in fuzzy_med:
+                lines.append(
+                    f"- `{r['pdf_name'][:40]}` -> `{r['cr_doi']}` "
+                    f"(评分: {r.get('fuzzy_score',0)})"
+                )
             lines.append("")
 
         return "\n".join(lines)

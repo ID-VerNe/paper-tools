@@ -10,6 +10,8 @@ from pdf_doi_toolkit.utils import (
 )
 from pdf_doi_toolkit.sciencedirect import ScienceDirectHandler
 from pdf_doi_toolkit.xmol import XMolFallback
+from pdf_doi_toolkit.fuzzy import FilenameParser, FilenameParseResult
+from pdf_doi_toolkit.matcher import DOIMatcher
 from pdf_doi_toolkit.config import AUTHOR_MATCH_CHAR_THRESHOLD
 
 
@@ -142,10 +144,180 @@ def test_config():
     print()
 
 
+def test_filename_parser():
+    print("=== 测试文件名解析 ===")
+
+    # 标准模式: Author_Year_Keyword
+    r = FilenameParser.parse("Smith_2023_Quantum.pdf")
+    assert r.author == "Smith", f"Expected Smith, got {r.author}"
+    assert r.year == 2023, f"Expected 2023, got {r.year}"
+    assert "Quantum" in r.keywords, f"Quantum not in keywords: {r.keywords}"
+    print("  ✅ Smith_2023_Quantum.pdf")
+
+    # 只有作者+年份
+    r = FilenameParser.parse("Smith_2023.pdf")
+    assert r.author == "Smith"
+    assert r.year == 2023
+    assert r.keywords == []
+    print("  ✅ Smith_2023.pdf")
+
+    # 年份前置
+    r = FilenameParser.parse("2023_Smith_Quantum.pdf")
+    assert r.author == "Smith", f"Expected Smith, got {r.author}"
+    assert r.year == 2023
+    print("  ✅ 2023_Smith_Quantum.pdf")
+
+    # 多词关键词
+    r = FilenameParser.parse("Zhang_2023_Deep_Learning.pdf")
+    assert r.author == "Zhang"
+    assert r.year == 2023
+    assert "Deep" in r.keywords
+    assert "Learning" in r.keywords
+    print("  ✅ Zhang_2023_Deep_Learning.pdf")
+
+    # 连字符分隔
+    r = FilenameParser.parse("Smith-2023-Quantum.pdf")
+    assert r.author == "Smith"
+    assert r.year == 2023
+    print("  ✅ Smith-2023-Quantum.pdf")
+
+    # 无年份
+    r = FilenameParser.parse("Smith_Quantum.pdf")
+    assert r.author == "Smith"
+    assert r.year is None
+    print("  ✅ Smith_Quantum.pdf (no year)")
+
+    # 无作者（裸文件名）
+    r = FilenameParser.parse("paper.pdf")
+    assert r.author == ""
+    assert r.year is None
+    print("  ✅ paper.pdf (bare)")
+
+    # 期刊名模式: Author_Journal_Year
+    r = FilenameParser.parse("Smith_Nature_2023.pdf")
+    assert r.author == "Smith", f"Expected Smith, got {r.author}"
+    assert r.year == 2023
+    print("  ✅ Smith_Nature_2023.pdf")
+
+    # 连字符作者名（不分裂）
+    r = FilenameParser.parse("Gonzalez-Cabaleiro_2023_Biofilm.pdf")
+    assert r.author == "Gonzalez-Cabaleiro", f"Expected Gonzalez-Cabaleiro, got {r.author}"
+    assert r.year == 2023
+    assert "Biofilm" in r.keywords
+    print("  ✅ Gonzalez-Cabaleiro_2023_Biofilm.pdf")
+
+    # 年份后置 + 期刊
+    r = FilenameParser.parse("Wang_Advanced_Materials_2023.pdf")
+    assert r.author == "Wang"
+    assert r.year == 2023
+    print("  ✅ Wang_Advanced_Materials_2023.pdf")
+
+    # 中文姓氏
+    r = FilenameParser.parse("Zhang_2023.pdf")
+    assert r.author == "Zhang"
+    assert r.year == 2023
+    print("  ✅ Zhang_2023.pdf")
+
+    # 作者=关键词去重
+    r = FilenameParser.parse("Smith_2023_Smith.pdf")
+    assert r.author == "Smith"
+    assert r.year == 2023
+    # "Smith" 应当被去重，不在 keywords 中
+    assert "Smith" not in r.keywords, f"Smith should be deduped from keywords: {r.keywords}"
+    print("  ✅ Smith_2023_Smith.pdf (author-keyword dedup)")
+
+    # 无后缀
+    r = FilenameParser.parse("Smith_2023_Quantum")
+    assert r.author == "Smith"
+    assert r.year == 2023
+    print("  ✅ Smith_2023_Quantum (no extension)")
+
+    # 空字符串
+    r = FilenameParser.parse("")
+    assert r.author == ""
+    assert r.year is None
+    assert r.keywords == []
+    print("  ✅ empty string")
+
+    print()
+
+
+def test_fuzzy_score():
+    print("=== 测试模糊匹配评分 ===")
+    matcher = DOIMatcher(".")
+
+    # 高置信度: 作者+年份+关键词全部匹配
+    parsed = FilenameParseResult(author="Smith", year=2023, keywords=["Quantum"])
+    cr = {"author": "John Smith", "title": "Quantum Computing Advances", "year": "2023"}
+    score = matcher._compute_fuzzy_score(parsed, cr)
+    assert score >= 90, f"Expected >= 90, got {score}"
+    print(f"  ✅ 高置信度: {score}")
+
+    # 中置信度: 作者+关键词，无年份
+    parsed2 = FilenameParseResult(author="Smith", year=None, keywords=["Quantum"])
+    score2 = matcher._compute_fuzzy_score(parsed2, cr)
+    assert 50 <= score2 < 90, f"Expected 50-90, got {score2}"
+    print(f"  ✅ 中置信度: {score2}")
+
+    # 低置信度: 仅关键词，不匹配
+    parsed3 = FilenameParseResult(author="", year=None, keywords=["Nothing"])
+    cr3 = {"author": "John Smith", "title": "Quantum Computing", "year": "2023"}
+    score3 = matcher._compute_fuzzy_score(parsed3, cr3)
+    assert score3 < 40, f"Expected < 40, got {score3}"
+    print(f"  ✅ 低置信度: {score3}")
+
+    # 仅年份匹配
+    parsed4 = FilenameParseResult(author="", year=2023, keywords=[])
+    cr4 = {"author": "Someone Else", "title": "Unrelated", "year": "2023"}
+    score4 = matcher._compute_fuzzy_score(parsed4, cr4)
+    assert score4 == 30, f"Expected 30 (year only), got {score4}"
+    print(f"  ✅ 仅年份匹配: {score4}")
+
+    # 年份邻近但不精确
+    parsed5 = FilenameParseResult(author="", year=2022, keywords=[])
+    cr5 = {"author": "Someone Else", "title": "Unrelated", "year": "2023"}
+    score5 = matcher._compute_fuzzy_score(parsed5, cr5)
+    assert score5 == 20, f"Expected 20 (year near), got {score5}"
+    print(f"  ✅ 年份邻近匹配: {score5}")
+
+    print()
+
+
+def test_fuzzy_integration():
+    print("=== 测试模糊匹配集成 ===")
+    # 空 Cat C 处理
+    matcher = DOIMatcher(".")
+    matcher.entries = []
+    matcher._cat_a = []
+    matcher._cat_b = []
+    matcher._cat_c = []
+    matcher.results = []
+    result = matcher.run_fuzzy_fallback()
+    assert result == []
+    print("  ✅ 空 Cat C 处理正常")
+
+    # Cat C 仅含无信息文件名
+    matcher2 = DOIMatcher(".")
+    matcher2.entries = [{"pdf_name": "paper.pdf", "json_title": "", "json_author": ""}]
+    matcher2._cat_a = []
+    matcher2._cat_b = []
+    matcher2._cat_c = [{"pdf_name": "paper.pdf", "json_title": "", "json_author": ""}]
+    matcher2.results = []
+    result2 = matcher2.run_fuzzy_fallback()
+    assert len(result2) == 1
+    assert result2[0]["note"] == "fuzzy: insufficient_clues"
+    print("  ✅ 无信息文件名处理正常")
+
+    print()
+
+
 if __name__ == "__main__":
     test_utils()
     test_authors_match()
     test_sciencedirect()
     test_xmol()
     test_config()
+    test_filename_parser()
+    test_fuzzy_score()
+    test_fuzzy_integration()
     print("🎉 所有测试通过！")
