@@ -11,6 +11,7 @@ settings.json
 
 # Output
 output/
+outputs/
 *.log
 
 # OS files
