@@ -84,10 +84,18 @@ def run_paper(paper, out_dir):
         return None
     with open(md_path, encoding="utf-8") as f:
         content = f.read()
+    # Cap content length. gemini-3.1-flash-lite handled ~94k chars (16512
+    # prompt tokens) fine in the 5-paper batch; a 1MB book (10.1002_9781394215416)
+    # exceeds context and 429s. Trim to a safe window and flag.
+    MAX_CHARS = 90000
+    truncated = len(content) > MAX_CHARS
+    if truncated:
+        content = content[:MAX_CHARS]
+        print(f"  !TRUNC {paper}: {len(content)} chars -> capped at {MAX_CHARS}")
     paras = anchors.paragraphize(content)
     print(f"\n===== {paper}  ({len(content)} chars, {len(paras)} paras) =====")
     per = {"matched": 0, "broken": 0, "unmatched": 0, "null": 0, "total": 0}
-    result = {}
+    result = {"_truncated": truncated}
     for prompt_file in PROMPT_FILES:
         with open(os.path.join(PROMPTS_DIR, prompt_file), encoding="utf-8") as f:
             prompt = f.read()
