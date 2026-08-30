@@ -111,6 +111,16 @@ mutation 脚本持久化在仓库内（`know/tests/mutation_test.py`），非 sc
 
 **注**：SKILL.md 规则——手写 mutant 不享等价豁免，但 `sha1→md5` 是**真实的语义等价**（hash 算法未被 SPEC 契约化）。若要严格 kill，需 SPEC 加"用 sha1"——但这会过度约束实现自由度。按 SKILL.md "Classify such survivors as 'equivalent, because <reason>'"处理，已在 EVIDENCE 记录原因。**4/5 killed，1 等价**——可信。
 
+### 订正（2026-08-30，验证测试后发现）
+
+上表中 `derive 存在性门反转` 的 KILLED 结论来自 commit `f56c9ba` 版本的 `mutation_test.py`，而那个版本的 `run_suite` 用 `subprocess.run(..., text=True)`。本机 locale 为 cp936，子进程的失败测试输出携带非 ASCII fixture 字符（τ、θ、①），cp936 解码器在读取管道时**间歇性崩溃**，导致 returncode 被误读 → existence-gate mutant 间歇被判为 SURVIVED。
+
+实测 flake 率：25 次运行中 4 次（16%）假 survivor。即 f56c9ba 版本的 harness 非确定性，上表那一条 KILLED 不可复现。
+
+修复见 commit `14b616f`：`run_suite` 改为读 bytes + `decode("utf-8", "replace")`，绕开 locale 编解码器。修复后 10 次运行 0 次 flake，existence-gate 稳定 KILLED。
+
+因此最终结论仍为 **4/5 killed，1 等价**，但其中 existence-gate 的可信 provenance 来自 14b616f 之后，而非原始 f56c9ba 报告。上表「套件健康 / 重复跑 3 次全绿 = 确定性（0 flake）」一行**仅指 unittest 套件本身**，不覆盖变异 harness；原报告把两者混同，此条订正。
+
 ## 真实执行输出（3 篇语料 end-to-end）
 
 ```
