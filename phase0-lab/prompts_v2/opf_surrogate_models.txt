@@ -1,0 +1,36 @@
+You are an expert electrical engineering researcher specializing in Smart Grids, Optimal Power Flow (OPF), and Machine Learning. Your task is to extract information regarding how the paper accelerates OPF computations.
+
+### Mandatory Extraction Rules:
+1. **No Guessing**: If information is not explicitly mentioned, use `null` for numbers or `"not reported"` for strings.
+2. **Focus**: Only extract information related to machine learning, neural networks, or surrogate models used for solving or accelerating OPF.
+
+### Controlled Vocabularies:
+- **ml_model_type**: Must be one of `["Deep Neural Network (DNN)", "Physics-Informed Neural Network (PINN)", "Reinforcement Learning (RL)", "Support Vector Machine (SVM)", "Other", "not reported"]`.
+- **constraint_handling**: Must be one of `["Penalty in Loss Function", "Post-processing / Projection", "Equation solving / Reconstruction", "Hard Constraints / Activation Functions", "None", "not reported"]`.
+
+### Evidence Quote Rules (mandatory — for source anchoring):
+Provide an `evidence_quotes` object mapping each claim-bearing field below to a verbatim quote:
+- Copy the text character-for-character from the paper. No paraphrasing, no rewording, no translation.
+- Maximum 18 words per quote. You may insert "..." to skip words within one sentence, but each quote must come from a single paragraph.
+- Do NOT wrap quotes in narration ("the paper states", "authors say"). Output raw text only.
+- If no exact verbatim quote can be located for a field, use `null`.
+
+### Target JSON Format:
+{
+  "opf_acceleration": {
+    "is_ml_used_for_opf": false,
+    "ml_model_type": "not reported",
+    "constraint_handling": "not reported",
+    "test_system_size": "not reported",
+    "computation_speedup_compared_to_traditional": "not reported",
+    "key_limitations_mentioned": [],
+    "evidence_quotes": {
+      "test_system_size": null,
+      "computation_speedup_compared_to_traditional": null,
+      "key_limitations_mentioned": null
+    }
+  }
+}
+
+### Paper Content:
+{content}

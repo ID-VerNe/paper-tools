@@ -1,0 +1,54 @@
+{
+  "cyber_attacks": {
+    "cyber_attacks": {
+      "addresses_cyber_security": true,
+      "attack_type": [
+        "False Data Injection Attack (FDIA)"
+      ],
+      "attack_target": "Power grid state estimator (bus voltage magnitudes, phase angles, and power measurements)",
+      "impact_on_system": "The attack can lead to significant changes in the power grid state variables.",
+      "attack_detection_method": "A graph theory-based approach that applies outlier detection techniques on state estimation results to identify and localize attacks.",
+      "evidence_quotes": {
+        "attack_target": "In this type of attack, the attacker injects false data into the grid measurements in order to achieve his goals.",
+        "impact_on_system": "Assuming this, the attack can lead to significant changes in the power grid state variables.",
+        "attack_detection_method": "In this article, a new algorithm is proposed to detect the FDIAs on ac state estimation."
+      }
+    }
+  },
+  "opf_surrogate_models": {
+    "opf_acceleration": {
+      "is_ml_used_for_opf": false,
+      "ml_model_type": "not reported",
+      "constraint_handling": "not reported",
+      "test_system_size": "not reported",
+      "computation_speedup_compared_to_traditional": "not reported",
+      "key_limitations_mentioned": [],
+      "evidence_quotes": {
+        "test_system_size": null,
+        "computation_speedup_compared_to_traditional": null,
+        "key_limitations_mentioned": null
+      }
+    }
+  },
+  "physics_informed_defense": {
+    "physics_informed_defense": {
+      "uses_physics_informed_defense": true,
+      "uses_jacobian_matrix": false,
+      "uses_network_topology": true,
+      "defense_mechanism_description": "The proposed method detects and localizes AC FDIAs by identifying outliers in state estimation results and analyzing their spatial relationships using graph theory. It leverages the fact that power flow equations force an attacker to manipulate measurements that are physically adjacent or related within the grid topology to maintain stealth.",
+      "evaluation_metrics": [
+        "Balanced Accuracy (BA)",
+        "True Positive Rate (TPR)",
+        "True Negative Rate (TNR)",
+        "Detection Accuracy Rate",
+        "False Detection Rate",
+        "Average Detection Time"
+      ],
+      "evidence_quotes": {
+        "defense_mechanism_description": "the main idea of the proposed method in this article is based on the fact that due to the power flow equations, the attacker needs to change the measurements obtained from the target bus (or branch) and some of its adjacent branches or buses to ensure a successful attack.",
+        "uses_network_topology": "the entire grid can be represented by a graph, considering the buses as its vertices and the branches as its edges.",
+        "uses_jacobian_matrix": null
+      }
+    }
+  }
+}

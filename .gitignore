@@ -8,11 +8,20 @@ python_embed/
 
 # Configuration (contains API keys)
 settings.json
+*.json.bak
+*.bak
 
 # Output
 output/
 outputs/
 *.log
+
+# phase0-lab: experiment corpus, derived JSON, OCR runs (large, regenerable)
+phase0-lab/src/
+phase0-lab/labs/
+
+# Third-party cloned repos (reference only, not our code)
+llm_wiki/
 
 # OS files
 Thumbs.db
