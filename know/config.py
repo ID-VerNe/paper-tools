@@ -17,13 +17,15 @@ UNMATCHED = "unmatched"
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS papers (
-  paper_id    TEXT PRIMARY KEY,
-  title       TEXT NOT NULL,
-  authors     TEXT NOT NULL,
-  year        INTEGER,
-  project     TEXT NOT NULL,
-  source_rel  TEXT,
-  ocr_version TEXT
+  paper_id        TEXT PRIMARY KEY,
+  title           TEXT NOT NULL,
+  authors         TEXT NOT NULL,
+  year            INTEGER,
+  project         TEXT NOT NULL,
+  source_rel      TEXT,
+  ocr_version     TEXT,
+  doi             TEXT,
+  identity_status TEXT
 );
 
 CREATE TABLE IF NOT EXISTS claims (
@@ -67,6 +69,19 @@ def init_db(db_path):
     conn.executescript(_clean_schema())
     conn.commit()
     return conn
+
+
+def insert_paper(conn, paper_id, title, authors, year, project, source_rel,
+                 ocr_version, doi="", identity_status="clean"):
+    """Insert a paper row, idempotent on paper_id (re-ingest no-op)."""
+    conn.execute(
+        "INSERT INTO papers (paper_id, title, authors, year, project, "
+        "source_rel, ocr_version, doi, identity_status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(paper_id) DO NOTHING",
+        (paper_id, title, authors, year, project, source_rel,
+         ocr_version, doi, identity_status),
+    )
 
 
 def insert_claim(conn, paper_id, concept, quote, anchor, heading_path,

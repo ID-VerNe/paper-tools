@@ -122,6 +122,7 @@ def derive(derived_json_paths, ocr_md_path):
                 if not isinstance(eq, dict):
                     continue
                 for field, quote in eq.items():
+                    quote = anchors.coerce_quote(quote)
                     if quote is None:
                         # null = paper has no verbatim text for this field;
                         # not a claim, not an error (Phase 1.0 finding 3)

@@ -5,6 +5,7 @@ Must fail (know.py stub raises NotImplementedError).
 import unittest
 import sys
 import os
+import json
 import tempfile
 import shutil
 
@@ -42,6 +43,69 @@ class TestIngest(unittest.TestCase):
         know.ingest(self.ocr_dir, self.derived_dir, self.db_path, self.kb_dir)
         log = os.path.join(self.kb_dir, "log.md")
         self.assertTrue(os.path.exists(log))
+
+    def test_ingest_with_identity_writes_real_doi_and_status(self):
+        """End-to-end: identity layer (doi_map + metadata JSON) flows DOI and
+        identity_status into the papers table and the markdown page.
+        """
+        import sqlite3
+        # build a tiny identity fixture: doi_map + metadata JSON for PAPER
+        dm = os.path.join(self.tmp, "doi_map.json")
+        with open(dm, "w", encoding="utf-8") as f:
+            json.dump([{"pdf_name": PAPER + ".pdf", "title": "FDIA Detection",
+                        "doi": "10.1109/TII.2020.2999571", "year": "2020",
+                        "status": "matched", "verified": True}], f)
+        meta_dir = os.path.join(self.tmp, "meta")
+        os.makedirs(meta_dir)
+        with open(os.path.join(meta_dir, f"{PAPER}_metadata_gemini-flash-lite.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump({"citation": {"title": "FDIA Detection",
+                                    "authors": ["Jorjani"], "year": 2020,
+                                    "doi": "10.1109/TII.2020.2999571"}}, f)
+        know.ingest(FIXTURES, FIXTURES, self.db_path, self.kb_dir,
+                    doi_map_path=dm, metadata_dir=meta_dir,
+                    model_alias="gemini-flash-lite")
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT doi, title, authors, year, identity_status FROM papers "
+            "WHERE paper_id=?", (PAPER,)
+        ).fetchone()
+        conn.close()
+        self.assertEqual(row[0], "10.1109/TII.2020.2999571")
+        self.assertEqual(row[1], "FDIA Detection")
+        self.assertEqual(row[4], "clean")
+        # the markdown page front matter carries the real DOI (not the paper_id)
+        with open(os.path.join(self.kb_dir, "papers", f"{PAPER}.md"),
+                  encoding="utf-8") as f:
+            page = f.read()
+        self.assertIn("doi: 10.1109/TII.2020.2999571", page)
+        self.assertIn("identity_status: clean", page)
+
+    def test_ingest_with_fmatter_trap_suppresses_doi(self):
+        """The .fmatter trap must NOT be emitted as a DOI."""
+        import sqlite3
+        fm_id = PAPER  # reuse fixture OCR/v2 but override identity
+        dm = os.path.join(self.tmp, "doi_map.json")
+        with open(dm, "w", encoding="utf-8") as f:
+            json.dump([{"pdf_name": fm_id + ".pdf", "title": "Book FM",
+                        "doi": "10.1002/9781394215416.fmatter",
+                        "year": "2026", "status": "matched",
+                        "verified": True}], f)
+        meta_dir = os.path.join(self.tmp, "meta")
+        os.makedirs(meta_dir)
+        with open(os.path.join(meta_dir, f"{fm_id}_metadata_gemini-flash-lite.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump({"citation": {"title": "Book FM", "authors": [],
+                                    "year": 2026, "doi": ""}}, f)
+        know.ingest(FIXTURES, FIXTURES, self.db_path, self.kb_dir,
+                    doi_map_path=dm, metadata_dir=meta_dir)
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT doi, identity_status FROM papers WHERE paper_id=?", (fm_id,)
+        ).fetchone()
+        conn.close()
+        self.assertEqual(row[0], "")  # fmatter suppressed
+        self.assertEqual(row[1], "fmatter_trap")
 
 
 class TestIdempotent(unittest.TestCase):

@@ -24,6 +24,27 @@ def _normalize(text):
     return " ".join(unicodedata.normalize("NFKC", text).split())
 
 
+def coerce_quote(value):
+    """Coerce an evidence_quotes field value to a string (or None).
+
+    The v2 prompt contract says evidence_quotes values are verbatim strings
+    or null. In practice the LLM sometimes returns a list for fields that are
+    naturally multi-valued (e.g. key_limitations_mentioned). A list of quotes
+    is joined with ' ... ' so each item becomes a fragment — classify_fragmented
+    then enforces 'all fragments must anchor', so a list with one bad item is
+    dropped (not fabricated). None stays None. Non-string scalars are str()'d.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, list):
+        parts = [str(x).strip() for x in value
+                 if x is not None and str(x).strip()]
+        return " ... ".join(parts) if parts else None
+    return str(value).strip() or None
+
+
 def paragraphize(ocr_md_text):
     """Split OCR markdown into a list of content paragraphs.
 

@@ -23,19 +23,21 @@ from datetime import datetime  # noqa: F401 (used by caller for log timestamps)
 import anchors
 import derive
 import config
+import identity
 
 
 # ---------- paper page (markdown archive) ----------
 
 _PAPER_PAGE_TEMPLATE = """---
 type: paper
-doi: {paper_id}
+doi: {doi}
 title: {title}
 authors: {authors}
 year: {year}
 project: {project}
 source_rel: {source_rel}
 ocr_version: {ocr_version}
+identity_status: {identity_status}
 created: code
 ---
 
@@ -77,12 +79,14 @@ def _write_paper_page(kb_dir, paper_id, paper_meta, claims):
 
     page = _PAPER_PAGE_TEMPLATE.format(
         paper_id=paper_id,
+        doi=paper_meta.get("doi", ""),
         title=paper_meta.get("title", paper_id),
         authors=paper_meta.get("authors", "[]"),
         year=paper_meta.get("year", ""),
         project=paper_meta.get("project", ""),
         source_rel=paper_meta.get("source_rel", ""),
         ocr_version=paper_meta.get("ocr_version", ""),
+        identity_status=paper_meta.get("identity_status", "clean"),
         claims_section=claims_section,
         anchors_section=anchors_section,
     )
@@ -113,22 +117,29 @@ def _write_catalog(kb_dir, paper_count):
         f.write("\n".join(lines) + "\n")
 
 
-# ---------- metadata extraction from derived_v2 ----------
+# ---------- metadata extraction from identity layer ----------
 
-def _extract_paper_meta(derived_json_path, paper_id):
-    """Pull title/authors/year from the metadata JSON if present in the
-    derived_v2 dir; else return minimal stub."""
-    # The v2 dir may contain a metadata JSON; check by convention
-    # (Phase 1.0 only ran 3 claim-bearing prompts, no metadata v2).
-    # Fallback: stub metadata from the paper_id.
+def _build_paper_meta(identity_rec, paper_id, ocr_version="deepseek-ocr-v1"):
+    """Build the paper_meta dict the ingest loop needs, from an identity record.
+
+    identity_rec comes from identity.build_identity(); it carries doi, status,
+    title, authors, year, journal, source_rel. The authors field is normalized
+    to a JSON string for the papers table (front matter wants a list shape).
+    """
+    authors = identity_rec.get("authors") or ""
+    if isinstance(authors, list):
+        import json as _json
+        authors = _json.dumps(authors, ensure_ascii=False)
     return {
         "paper_id": paper_id,
-        "title": paper_id,
-        "authors": "[]",
-        "year": "",
+        "doi": identity_rec.get("doi", ""),
+        "title": identity_rec.get("title") or paper_id,
+        "authors": authors or "[]",
+        "year": identity_rec.get("year", ""),
         "project": "power-system-cyber-security-review",
-        "source_rel": paper_id,
-        "ocr_version": "deepseek-ocr-v1",
+        "source_rel": identity_rec.get("source_rel", paper_id),
+        "ocr_version": ocr_version,
+        "identity_status": identity_rec.get("status", "clean"),
     }
 
 
@@ -145,12 +156,17 @@ def _existing_claim_keys(conn, paper_id):
 
 # ---------- public API ----------
 
-def ingest(ocr_dir, derived_dir, db_path, kb_dir):
+def ingest(ocr_dir, derived_dir, db_path, kb_dir,
+           doi_map_path=None, metadata_dir=None, model_alias="gemini-flash-lite"):
     """Scan derived_v2 JSONs + OCR md -> write index.sqlite + markdown pages.
 
     Idempotent: re-ingesting the same papers does not duplicate claim rows
     (dedup by (paper_id, concept, quote) before insert). Source corpus
     (ocr_dir, derived_dir) is read-only.
+
+    When doi_map_path + metadata_dir are given, each paper's title/authors/
+    year/doi come from identity.build_identity (doi_map + metadata JSON),
+    with the three-layer trust order (clean / fmatter_trap / unresolved).
     """
     conn = config.init_db(db_path)
     os.makedirs(kb_dir, exist_ok=True)
@@ -161,6 +177,13 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir):
         for f in os.listdir(derived_dir)
         if f.endswith(".json") and "_v2_" in f
     )
+
+    # identity mapping (one-shot) for all papers being ingested
+    paper_ids_in_batch = [derive._paper_id_from_path(p) for p in derived_jsons]
+    id_map = {}
+    if doi_map_path and metadata_dir:
+        id_map = identity.build_identity(doi_map_path, metadata_dir,
+                                         paper_ids_in_batch, model_alias)
 
     paper_count = 0
     for json_path in derived_jsons:
@@ -174,16 +197,15 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir):
             continue
 
         claims = derive.derive([json_path], ocr_md)
-        paper_meta = _extract_paper_meta(json_path, paper_id)
+        identity_rec = id_map.get(paper_id, {"paper_id": paper_id})
+        paper_meta = _build_paper_meta(identity_rec, paper_id)
 
-        # upsert paper row
-        conn.execute(
-            "INSERT INTO papers (paper_id, title, authors, year, project, "
-            "source_rel, ocr_version) VALUES (?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(paper_id) DO NOTHING",
-            (paper_meta["paper_id"], paper_meta["title"],
-             paper_meta["authors"], paper_meta["year"], paper_meta["project"],
-             paper_meta["source_rel"], paper_meta["ocr_version"]),
+        # upsert paper row (with DOI + identity_status from the identity layer)
+        config.insert_paper(
+            conn, paper_meta["paper_id"], paper_meta["title"],
+            paper_meta["authors"], paper_meta["year"], paper_meta["project"],
+            paper_meta["source_rel"], paper_meta["ocr_version"],
+            paper_meta["doi"], paper_meta["identity_status"],
         )
 
         existing = _existing_claim_keys(conn, paper_id)
@@ -270,12 +292,27 @@ def _main(argv):
     cmd = argv[1]
     if cmd == "ingest":
         if len(argv) < 4:
-            print("usage: know.py ingest <ocr_dir> <derived_v2_dir>", file=sys.stderr)
+            print("usage: know.py ingest <ocr_dir> <derived_v2_dir> "
+                  "[--doi-map PATH] [--metadata-dir PATH] [--model-alias NAME]",
+                  file=sys.stderr)
             return 2
         ocr_dir, derived_dir = argv[2], argv[3]
         db = os.environ.get("KNOW_DB", "knowledge-base/index.sqlite")
         kb = os.environ.get("KNOW_KB", "knowledge-base")
-        n = ingest(ocr_dir, derived_dir, db, kb)
+        doi_map = os.environ.get("KNOW_DOI_MAP", "")
+        metadata_dir = os.environ.get("KNOW_METADATA_DIR", "")
+        model_alias = os.environ.get("KNOW_MODEL_ALIAS", "gemini-flash-lite")
+        # CLI overrides
+        if "--doi-map" in argv:
+            doi_map = argv[argv.index("--doi-map") + 1]
+        if "--metadata-dir" in argv:
+            metadata_dir = argv[argv.index("--metadata-dir") + 1]
+        if "--model-alias" in argv:
+            model_alias = argv[argv.index("--model-alias") + 1]
+        n = ingest(ocr_dir, derived_dir, db, kb,
+                   doi_map_path=(doi_map or None),
+                   metadata_dir=(metadata_dir or None),
+                   model_alias=model_alias)
         print(f"ingested {n} papers -> {db}")
         return 0
     if cmd == "validate":

@@ -10,10 +10,39 @@ from anchors import (
     anchor_id,
     rematch,
     classify_fragmented,
+    coerce_quote,
     MATCHED,
     BROKEN,
     UNMATCHED,
 )
+
+
+class TestCoerceQuote(unittest.TestCase):
+    def test_none_stays_none(self):
+        self.assertIsNone(coerce_quote(None))
+
+    def test_string_passes_through(self):
+        self.assertEqual(coerce_quote("verbatim"), "verbatim")
+
+    def test_list_joined_with_ellipsis(self):
+        # a multi-valued field becomes a fragmented quote; all fragments must
+        # anchor, so one bad item drops the claim (no fabrication)
+        joined = coerce_quote(["first fragment", "second fragment"])
+        self.assertIn("...", joined)
+        self.assertIn("first fragment", joined)
+        self.assertIn("second fragment", joined)
+
+    def test_empty_list_becomes_none(self):
+        self.assertIsNone(coerce_quote([]))
+        self.assertIsNone(coerce_quote(["", None]))
+
+    def test_non_string_scalar_str(self):
+        self.assertEqual(coerce_quote(42), "42")
+        self.assertEqual(coerce_quote(True), "True")
+
+    def test_empty_string_becomes_none(self):
+        self.assertIsNone(coerce_quote(""))
+        self.assertIsNone(coerce_quote("   "))
 
 
 class TestParagraphize(unittest.TestCase):
