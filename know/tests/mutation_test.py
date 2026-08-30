@@ -54,11 +54,18 @@ MUTANTS = [
 
 
 def run_suite():
+    # text=True would decode the child's PIPE with the locale codec (cp936 on
+    # this Windows box). The child emits UTF-8 (uv sets PYTHONIOENCODING=utf-8)
+    # and failing-test output carries non-ASCII fixture chars (tau, theta,
+    # circled-1). A byte the locale codec cannot decode crashes the reader
+    # thread, which intermittently misreports returncode -> false SURVIVED.
+    # Read bytes and decode explicitly instead (utf-8, errors=replace).
     r = subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "tests", "-v"],
-        cwd=PKG, capture_output=True, text=True,
+        cwd=PKG, capture_output=True,
     )
-    out = (r.stdout or "") + (r.stderr or "")
+    out = (r.stdout or b"").decode("utf-8", "replace") \
+        + (r.stderr or b"").decode("utf-8", "replace")
     return r.returncode != 0, out
 
 
