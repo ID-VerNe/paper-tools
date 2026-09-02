@@ -2,7 +2,7 @@
 
 **起草日期**: 2026-08-30
 **维护者**: 用户（博士生，paper-tools 工具链维护者）+ Claude Code
-**状态**: Phase 0 / 0.5 / 1.0 / 1 / 2 全部完成（2026-08-30）；Phase 3 尚未开始
+**状态**: Phase 0 / 0.5 / 1.0 / 1 / 2 全部完成（2026-08-30）；Phase 3 第 1/2 项（agent 协议 + concepts/ 懒创建）与第 3 项（语料 B 身份映射）完成后待收尾（2026-09-02）
 **关联文件**:
 - 两轮 multi-lens-research 产物：`outputs/direction-judge/`（第一轮：是否引入 LLM Wiki）、`outputs/tech-architecture/`（第二轮：存储架构借鉴）
 - 实验产物：`phase0-lab/PHASE0_REPORT.md`、`phase0-lab/PHASE05_REPORT.md`、`phase0-lab/PHASE2_REPORT.md`
@@ -138,7 +138,13 @@
 - 产出：`phase0-lab/PHASE2_REPORT.md`（全量审计报告）。
 
 **Phase 2 之外、Phase 3 之内**：
-- 回填运行器泛化为 `phase0-lab/backfill_run.py`（N 篇，用 production `classify_fragmented` 测命中率）；回填作为 litrev 子命令 / `know ingest --backfill` 增量触发**未做**（Phase 3 项）。
+- 回填运行器泛化为 `phase0-lab/backfill_run.py`（N 篇，用 production `classify_fragmented` 测命中率）；回填作为 litrev 子命令 / `know ingest --backfill` 增量触发已交付（`--backfill` 覆写前快照，schema.md §5）。
+
+**Phase 3 — 语料 B 全流程（已收尾，2026-09-02）**（Phase 3 第 3 项）
+- v2 提取：50/50 篇全跑 3 个 claim-bearing prompt（沿用 cyber-security 三 prompt，P2P 语料实测命中率 96.1%，49 claims；2 broken 被 existence gate 丢弃）→ `论文库/新版本/extracted/derived_v2/*_v2_gemini-3.1-flash-lite.json`。
+- 身份映射（无 pipeline doi_map，四身份族）：underscore 5 篇经 **crossref 标题核验**（`phase0-lab/corpusB_verify.py`，相似度 ≥0.9）→ `corpusB_doi_map.json` → `clean`；hyphen 族含 metadata 真实 DOI 者 → `unresolved_meta`（记录+标注，不伪报 clean）；其余（含 author_year / arxiv / 无 DOI 的 hyphen）→ `unresolved`（paper_id 作 uid）。全量 5 clean / 13 unresolved_meta / 32 unresolved。
+- ingest：50 papers → 49 claims（project=thesis-litrev），与语料 A 同层合并（84 papers / 172 claims / validate=OK）。
+- know.py 新增 `--project` 参数 + catalog 页数修复（合并后按 pages 计数，非批次数）；+5 新测试（四身份族 + project 标签 + 合并 catalog），全 84 测试通过。
 
 ## 5. 修正后的实现计划（四阶段 + Phase 1.0）
 
@@ -290,6 +296,10 @@ know flag <claim_id> --note "..."   # 标记不删除（信任链：标，绝不
 - 语料 A 真实结构（34/272/32/2）、`.fmatter` 陷阱、语料 B 四身份族——peer review 实地核验
 - 真实 LLM 提取（v2 prompt）evidence_quote 命中率全 34 篇 **90.5%**（5 篇小批 81.8%→29 篇 93.0%）——Phase 2
 - 身份映射全量正确：31 clean / 1 fmatter_trap / 2 unresolved，无伪 DOI——Phase 2
+- 语料 B v2 提取命中率 **96.1%**（49/51 non-null；P2P 语料 + cyber-security prompt，2 broken 被 existence gate 丢）——Phase 3
+- 语料 B 身份映射全量正确：**5 clean / 13 unresolved_meta / 32 unresolved**（crossref 标题核验 ≥0.9 升级 5 篇 underscore 为 clean；unresolved_meta 记录 metadata DOI 但标注未核验；其余 paper_id 作 uid）——Phase 3
+- 同层合并 84 papers / 172 claims，validate=OK，`know search` 跨语料可用——Phase 3
+- know 包 84/84 tests（+5 语料 B 覆盖）——Phase 3
 - know 包 51/51 tests + 4/5 变异 kill——Phase 1
 
 **合理推测（未实测但有依据）**：
@@ -299,21 +309,22 @@ know flag <claim_id> --note "..."   # 标记不删除（信任链：标，绝不
 **暂时无法验证**：
 - agent 是否真会在写作时查询此层（peer review 第一轮最弱链接 + Missing Perspective）——只有真实使用才知道
 - 跨 OCR 引擎移植性（synthesis Frontier Question）——Phase 0 只测了 DeepSeek-OCR 自身稳定性，换引擎未测
-- 语料 B 身份映射（无 doi_map，四身份族）——未触及（Phase 3 范围）
+- 语料 B 身份映射（无 doi_map，四身份族）——**已完成**（Phase 3，2026-09-02）：underscore 经 crossref 核验为 clean，hyphen/metadata DOI 为 unresolved_meta（13 篇，待人工确认清单），其余 uid（unresolved）。
 
 **已被证伪的假设**：
 - ~~"现有 derived JSON 可直接确定性重锚到 OCR 段落"~~——Phase 0.5 证伪，95.6% 字段无可锚定引文。修复靠 prompt 改造（Phase 1.0）。
 
 ## 9. 下一步（等用户定）
 
-**Phase 0 / 0.5 / 1.0 / 1 / 2 全部完成**（2026-08-30）。当前待决策：是否进入 **Phase 3 — Agent 查询协议**（真正的接口，见 §5 Phase 3 块）：
+**Phase 0 / 0.5 / 1.0 / 1 / 2 全部完成**（2026-08-30）；**Phase 3 第 1/2/3 项已完成**（schema.md agent 协议、concepts/ 懒创建、语料 B 身份映射 + ingest；第 4 项 backfill 以 `--backfill` 形态交付）。当前层内：A 34 篇 + B 50 篇，172 claims，validate=OK。
 
-1. **Phase 3 Agent 查询协议**——schema.md 化，search→cite://→答 attributed 归属（含作者归属）。这是把已建好的 34 篇知识层真正交付给 agent 用的那一步。
-2. **concepts/ 概念页**——懒创建，层内唯一 LLM 写入（同概念复现时）。
-3. **语料 B 身份映射**——无 doi_map，四身份族（A 之外第二块语料）。
-4. **回填作为 litrev 子命令 / `know ingest --backfill`**——下一次 litrev-extract 运行覆写前自动增量触发。
+待用户决策/执行：
 
-是否进 Phase 3 由用户决定（LLM 配额不是约束）。若不进，当前 34 篇已可被 agent 经 `know search` 查询（Phase 1 的 CLI 已交付）。
+1. **13 篇 unresolved_meta 的 DOI 人工确认清单**（见 `phase0-lab/corpusB_doi_map.json` + 审阅记录）——可经 crossref 批量核验升级为 clean，或维持记录+标注现状。
+2. **语料 B P2P 专属 prompt**——当前 v2 claims 由 cyber-security prompt 产出（96.1% 命中率但主题错位，fields 大半 null）。若 thesis-litrev 需要真正的 P2P 交易 claims（顺序 agent 更新、市场设计等），需为 P2P 写 claim-bearing prompt 重跑。
+3. agent 是否真会在写作时查询此层——只有真实使用才知道（peer review 第一轮最弱链接）。
+
+若三项都不做，当前 84 篇已可被 agent 经 `know search` 查询（Phase 1 CLI 已交付，两条语料同层并存）。
 
 ## 附录 A：产出文件清单
 

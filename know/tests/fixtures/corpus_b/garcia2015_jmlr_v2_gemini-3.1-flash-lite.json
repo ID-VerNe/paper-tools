@@ -1,0 +1,14 @@
+{
+  "cyber_attacks": {
+    "cyber_attacks": {
+      "attack_target": null,
+      "impact_on_system": null,
+      "attack_detection_method": "One-class classifiers detect novel observations that deviate from the expected data distribution.",
+      "evidence_quotes": {
+        "attack_target": null,
+        "impact_on_system": null,
+        "attack_detection_method": "One-class classifiers detect novel observations that deviate from the expected data distribution."
+      }
+    }
+  }
+}

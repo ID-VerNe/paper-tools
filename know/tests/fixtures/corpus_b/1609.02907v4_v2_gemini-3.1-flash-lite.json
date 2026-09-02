@@ -1,0 +1,14 @@
+{
+  "cyber_attacks": {
+    "cyber_attacks": {
+      "attack_target": null,
+      "impact_on_system": null,
+      "attack_detection_method": "The sequential agent updates change the network environment for every trading round.",
+      "evidence_quotes": {
+        "attack_target": null,
+        "impact_on_system": null,
+        "attack_detection_method": "The sequential agent updates change the network environment for every trading round."
+      }
+    }
+  }
+}

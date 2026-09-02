@@ -73,12 +73,23 @@ def init_db(db_path):
 
 def insert_paper(conn, paper_id, title, authors, year, project, source_rel,
                  ocr_version, doi="", identity_status="clean"):
-    """Insert a paper row, idempotent on paper_id (re-ingest no-op)."""
+    """Insert a paper row; on conflict, UPSERT the identity record.
+
+    Better identity evidence can arrive later (corpus B: crossref upgraded
+    11 hyphen-family DOIs from unresolved_meta to clean). Re-ingest must
+    reflect the new status instead of DO NOTHING. Claims are deduped
+    separately in know.ingest (by paper_id+concept+quote), so the UPSERT
+    never loses evidence.
+    """
     conn.execute(
         "INSERT INTO papers (paper_id, title, authors, year, project, "
         "source_rel, ocr_version, doi, identity_status) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT(paper_id) DO NOTHING",
+        "ON CONFLICT(paper_id) DO UPDATE SET "
+        "title=excluded.title, authors=excluded.authors, year=excluded.year, "
+        "project=excluded.project, source_rel=excluded.source_rel, "
+        "ocr_version=excluded.ocr_version, doi=excluded.doi, "
+        "identity_status=excluded.identity_status",
         (paper_id, title, authors, year, project, source_rel,
          ocr_version, doi, identity_status),
     )

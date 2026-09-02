@@ -1,0 +1,14 @@
+{
+  "cyber_attacks": {
+    "cyber_attacks": {
+      "attack_target": null,
+      "impact_on_system": null,
+      "attack_detection_method": "The DSO is responsible for determining DOEs for prosumers based on network constraints.",
+      "evidence_quotes": {
+        "attack_target": null,
+        "impact_on_system": null,
+        "attack_detection_method": "The DSO is responsible for determining DOEs for prosumers based on network constraints."
+      }
+    }
+  }
+}

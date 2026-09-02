@@ -1,0 +1,14 @@
+{
+  "cyber_attacks": {
+    "cyber_attacks": {
+      "attack_target": null,
+      "impact_on_system": null,
+      "attack_detection_method": "Cyber attacks such as false data injection attacks can bring significant risks to the trading platform.",
+      "evidence_quotes": {
+        "attack_target": null,
+        "impact_on_system": null,
+        "attack_detection_method": "Cyber attacks such as false data injection attacks can bring significant risks to the trading platform."
+      }
+    }
+  }
+}

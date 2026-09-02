@@ -10,10 +10,11 @@ hit rate measured here matches what know ingest will actually keep.
 
 Usage:
     uv run --no-project --with httpx python phase0-lab/backfill_run.py \
-        [--papers id1 id2 ...] [--out DIR] [--model NAME] [--limit N]
+        [--papers id1 id2 ...] [--ocr-base DIR] [--out DIR] [--model NAME] [--limit N]
 
 If --papers omitted, runs the default 5-paper small batch (Phase 2 gate).
 Writes v2 JSONs to --out (default: corpus A litrev_project/output/derived_v2).
+--ocr-base overrides the OCR root (corpus B: .../论文库/新版本).
 """
 import json
 import os
@@ -77,8 +78,8 @@ def extract_json(text):
             return None
 
 
-def run_paper(paper, out_dir):
-    md_path = os.path.join(OCR_BASE, paper, paper + ".md")
+def run_paper(paper, out_dir, ocr_base):
+    md_path = os.path.join(ocr_base, paper, paper + ".md")
     if not os.path.exists(md_path):
         print(f"  SKIP {paper}: no OCR md at {md_path}")
         return None
@@ -153,6 +154,7 @@ def main():
         "10.1109_tpwrs.2021.3124726",
     ])
     ap.add_argument("--out", default=DEFAULT_OUT)
+    ap.add_argument("--ocr-base", default=OCR_BASE)
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--limit", type=int, default=None,
                     help="cap number of papers (for staged runs)")
@@ -160,14 +162,16 @@ def main():
 
     MODEL = args.model
     os.makedirs(args.out, exist_ok=True)
+    OCR_BASE2 = args.ocr_base  # local handle, avoids touching the module constant
     papers = args.papers
     if args.limit:
         papers = papers[:args.limit]
 
-    print(f"backfill_run: {len(papers)} papers, model={MODEL}, out={args.out}")
+    print(f"backfill_run: {len(papers)} papers, model={MODEL}, "
+          f"ocr-base={OCR_BASE2}, out={args.out}")
     results = []
     for p in papers:
-        r = run_paper(p, args.out)
+        r = run_paper(p, args.out, OCR_BASE2)
         if r:
             results.append(r)
 

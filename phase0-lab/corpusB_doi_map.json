@@ -1,0 +1,146 @@
+[
+  {
+    "pdf_name": "10.1007_978-981-97-6349-8_58.pdf",
+    "doi": "10.1007/978-981-97-6349-8_58",
+    "title": "Navigating Challenges and Opportunities in Peer-to-Peer Energy Trading: A Comprehensive Review on Indian Scenario",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (structural)"
+  },
+  {
+    "pdf_name": "10.1049_rpg2.70075.pdf",
+    "doi": "10.1049/rpg2.70075",
+    "title": "A Comprehensive Review on Peer‐to‐Peer Energy Trading: Market Structure, Operational Layers, Energy Cooperatives and Multi‐energy Systems",
+    "year": 2025,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (structural)"
+  },
+  {
+    "pdf_name": "10.1109_ACCESS.2025.3572174.pdf",
+    "doi": "10.1109/ACCESS.2025.3572174",
+    "title": "A Comprehensive Review of Blockchain and Machine Learning Integration for Peer-to-Peer Energy Trading in Smart Grids",
+    "year": 2025,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (structural)"
+  },
+  {
+    "pdf_name": "10.3390_app142411510.pdf",
+    "doi": "10.3390/app142411510",
+    "title": "Energy Trading in Local Energy Markets: A Comprehensive Review of Models, Solution Strategies, and Machine Learning Approaches",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (structural)"
+  },
+  {
+    "pdf_name": "10.3390_en17071702.pdf",
+    "doi": "10.3390/en17071702",
+    "title": "A Review of Peer-to-Peer Energy Trading Markets: Enabling Models and Technologies",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (structural)"
+  },
+  {
+    "pdf_name": "10_1080-0740817X_2016_1189626.pdf",
+    "doi": "10.1080/0740817X.2016.1189626",
+    "title": "An introduction to optimal power flow: Theory, formulation, and examples",
+    "year": 2016,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-TIE_2018_2874578.pdf",
+    "doi": "10.1109/TIE.2018.2874578",
+    "title": "Peer-to-Peer Energy Trading in a Prosumer-Based Community Microgrid: A Game-Theoretic Model",
+    "year": 2019,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-TSG_2023_3277087.pdf",
+    "doi": "10.1109/TSG.2023.3277087",
+    "title": "Multi-Agent Safe Graph Reinforcement Learning for PV Inverters-Based Real-Time Decentralized Volt/Var Control in Zoned Distribution Networks",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-TSG_2023_3302270.pdf",
+    "doi": "10.1109/TSG.2023.3302270",
+    "title": "Dynamic Operating Envelope-Based Local Energy Market for Prosumers With Electric Vehicles",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-tpwrs_2016_2589464.pdf",
+    "doi": "10.1109/TPWRS.2016.2589464",
+    "title": "A Dual Method for Computing Power Transfer Distribution Factors",
+    "year": 2016,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-tpwrs_2024_3510673.pdf",
+    "doi": "10.1109/TPWRS.2024.3510673",
+    "title": "Dynamic Operating Envelope-Integrated Cooperative Energy Trading: A Fair Allocation Approach",
+    "year": 2025,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-tsg_2023_3297366.pdf",
+    "doi": "10.1109/TSG.2023.3297366",
+    "title": "Dynamic Operating Envelope-Enabled P2P Trading to Maximize Financial Returns of Prosumers",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-tsg_2024_3512456.pdf",
+    "doi": "10.1109/TSG.2024.3512456",
+    "title": "Power Distribution Network Topology Detection Using Dual-Graph Structure Graph Neural Network Model",
+    "year": 2025,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_1109-tste_2024_3516792.pdf",
+    "doi": "10.1109/TSTE.2024.3516792",
+    "title": "Adaptive Voltage Control of Inverter-Based DG in Active Distribution Networks With Measurement-Strategy Mapping Matrix",
+    "year": 2025,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_3390-en14154665.pdf",
+    "doi": "10.3390/en14154665",
+    "title": "Decentralized Prosumer-Centric P2P Electricity Market Coordination with Grid Security",
+    "year": 2021,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  },
+  {
+    "pdf_name": "10_3390-en17040915.pdf",
+    "doi": "10.3390/en17040915",
+    "title": "A Blockchain-Based Scalability Solution with Microgrids Peer-to-Peer Trade",
+    "year": 2024,
+    "status": "matched",
+    "verified": true,
+    "method": "crossref-title-sim>=0.9 (metadata)"
+  }
+]

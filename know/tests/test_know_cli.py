@@ -314,6 +314,182 @@ class TestConcept(unittest.TestCase):
         self.assertEqual(r.returncode, 1)  # fixture = 1 paper -> refused
 
 
+class TestCorpusBIdentityMapping(unittest.TestCase):
+    """Corpus B (thesis-litrev): no pipeline doi_map; partial doi_map (only
+    crossref-verified underscore papers) + LLM metadata for the rest.
+
+    Four identity families, master plan Phase 2 step 1:
+      - underscore  (10.3390_en17071702): in doi_map -> clean + real doi
+      - hyphen      (10_1109-TSG_2023_3302270): not in doi_map; metadata
+                    carries a real DOI -> unresolved_meta (recorded, flagged)
+      - author_year (garcia2015_jmlr): not in doi_map; metadata no DOI ->
+                    unresolved (doi empty, paper_id = uid)
+      - arxiv      (1609.02907v4): not in doi_map; metadata no DOI ->
+                    unresolved (doi empty, paper_id = uid)
+    """
+
+    CORPUS_B = os.path.join(FIXTURES, "corpus_b")
+
+    def _metadata(self, meta_dir, pid, title, doi, year=2024):
+        with open(os.path.join(meta_dir, f"{pid}_metadata_deepseek.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump({"citation": {"title": title, "authors": ["X"],
+                                    "year": year, "doi": doi}}, f)
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.tmp, "index.sqlite")
+        self.kb_dir = os.path.join(self.tmp, "knowledge-base")
+        self.meta_dir = os.path.join(self.tmp, "meta")
+        os.makedirs(self.meta_dir)
+        # partial doi_map: only the crossref-verified underscore paper
+        self.doi_map = os.path.join(self.tmp, "doi_map.json")
+        with open(self.doi_map, "w", encoding="utf-8") as f:
+            json.dump([{"pdf_name": "10.3390_en17071702.pdf",
+                        "doi": "10.3390/en17071702", "year": "2024",
+                        "status": "matched", "verified": True}], f)
+        self._metadata(self.meta_dir, "10_1109-TSG_2023_3302270",
+                       "Dynamic Operating Envelope-Based Local Energy Market",
+                       "10.1109/TSG.2023.3302270")
+        self._metadata(self.meta_dir, "10.3390_en17071702",
+                       "A Review of Peer-to-Peer Energy Trading Markets",
+                       "10.3390/en17071702")
+        self._metadata(self.meta_dir, "garcia2015_jmlr",
+                       "One-Class Classification for Novelty Detection", "")
+        self._metadata(self.meta_dir, "1609.02907v4",
+                       "Multi-Agent RL for P2P Energy Trading", "")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _rows(self):
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT paper_id, doi, title, identity_status FROM papers"
+        ).fetchall()
+        conn.close()
+        return {r[0]: {"doi": r[1], "title": r[2], "status": r[3]} for r in rows}
+
+    def test_four_family_identity_statuses(self):
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=self.doi_map, metadata_dir=self.meta_dir,
+                    model_alias="deepseek")
+        rows = self._rows()
+        # underscore: verified in partial doi_map -> clean
+        self.assertEqual(rows["10.3390_en17071702"]["status"], "clean")
+        self.assertEqual(rows["10.3390_en17071702"]["doi"],
+                         "10.3390/en17071702")
+        # hyphen: not in doi_map, metadata DOI recorded but flagged
+        self.assertEqual(rows["10_1109-TSG_2023_3302270"]["status"],
+                         "unresolved_meta")
+        self.assertEqual(rows["10_1109-TSG_2023_3302270"]["doi"],
+                         "10.1109/TSG.2023.3302270")
+        # author_year / arxiv: no DOI anywhere -> unresolved, doi empty
+        self.assertEqual(rows["garcia2015_jmlr"]["status"], "unresolved")
+        self.assertEqual(rows["garcia2015_jmlr"]["doi"], "")
+        self.assertEqual(rows["1609.02907v4"]["status"], "unresolved")
+        self.assertEqual(rows["1609.02907v4"]["doi"], "")
+        # every paper still title-queryable (metadata title survives)
+        self.assertEqual(rows["1609.02907v4"]["title"],
+                         "Multi-Agent RL for P2P Energy Trading")
+
+    def test_hyphen_paper_page_named_by_uid(self):
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=self.doi_map, metadata_dir=self.meta_dir,
+                    model_alias="deepseek")
+        # hyphen-family paper id (uid) is the page name, DOI not promoted
+        page = os.path.join(self.kb_dir, "papers",
+                            "10_1109-TSG_2023_3302270.md")
+        self.assertTrue(os.path.exists(page))
+        with open(page, encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("identity_status: unresolved_meta", text)
+        self.assertIn("doi: 10.1109/TSG.2023.3302270", text)
+
+    def test_all_four_claims_ingested(self):
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=self.doi_map, metadata_dir=self.meta_dir,
+                    model_alias="deepseek")
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        n = conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
+        conn.close()
+        self.assertEqual(n, 4)  # 1 claim per paper, all anchored
+
+    def test_project_tagged_thesis_litrev(self):
+        """Corpus B papers carry project=thesis-litrev (not the corpus A
+        default), so one layer holds both reviews without mixing scopes."""
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=self.doi_map, metadata_dir=self.meta_dir,
+                    model_alias="deepseek", project="thesis-litrev")
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT DISTINCT project FROM papers").fetchall()
+        conn.close()
+        self.assertEqual(rows, [("thesis-litrev",)])
+        # frontmatter carries the project too
+        page = os.path.join(self.kb_dir, "papers",
+                            "10_1109-TSG_2023_3302270.md")
+        with open(page, encoding="utf-8") as f:
+            self.assertIn("project: thesis-litrev", f.read())
+
+    def test_merged_catalog_counts_all_pages(self):
+        """Two corpora in one layer: catalog header == total pages, not the
+        last batch size (regression: A(1) + B(4) -> 'papers: 5')."""
+        know.ingest(FIXTURES, FIXTURES, self.db_path, self.kb_dir)  # corpus A
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=self.doi_map, metadata_dir=self.meta_dir,
+                    model_alias="deepseek", project="thesis-litrev")
+        with open(os.path.join(self.kb_dir, "catalog.md"), encoding="utf-8") as f:
+            head = f.read().splitlines()[2]  # line 3: papers: N
+        self.assertEqual(head, "papers: 5")
+        self.assertEqual(
+            len([f for f in os.listdir(os.path.join(self.kb_dir, "papers"))
+                 if f.endswith(".md")]), 5)
+
+
+def test_identity_upgrade_on_reingest(self):
+        """Later verification upgrades a paper's identity (complex B: hyphen
+        DOI goes unresolved_meta -> clean when crossref evidence lands in the
+        doi_map). Re-ingest must UPSERT the row AND rewrite the page."""
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=self.doi_map, metadata_dir=self.meta_dir,
+                    model_alias="deepseek", project="thesis-litrev")
+        # now the hyphen DOI gets verified -> added to doi_map
+        dm2 = os.path.join(self.tmp, "doi_map2.json")
+        with open(dm2, "w", encoding="utf-8") as f:
+            json.dump([
+                {"pdf_name": "10.3390_en17071702.pdf",
+                 "doi": "10.3390/en17071702", "year": "2024",
+                 "status": "matched", "verified": True},
+                {"pdf_name": "10_1109-TSG_2023_3302270.pdf",
+                 "doi": "10.1109/TSG.2023.3302270", "year": "2024",
+                 "status": "matched", "verified": True},
+            ], f)
+        know.ingest(self.CORPUS_B, self.CORPUS_B, self.db_path, self.kb_dir,
+                    doi_map_path=dm2, metadata_dir=self.meta_dir,
+                    model_alias="deepseek", project="thesis-litrev")
+        # DB upgraded
+        rows = self._rows()
+        self.assertEqual(rows["10_1109-TSG_2023_3302270"]["status"],
+                         "clean")
+        # page frontmatter rewritten with the new status + verified DOI
+        page = os.path.join(self.kb_dir, "papers",
+                            "10_1109-TSG_2023_3302270.md")
+        with open(page, encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("identity_status: clean", text)
+        self.assertIn("doi: 10.1109/TSG.2023.3302270", text)
+        # claims NOT doubled by the re-ingest (dedup untouched by UPSERT)
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        n = conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
+        conn.close()
+        self.assertEqual(n, 4)
+
+
 class TestValidate(unittest.TestCase):
     def test_validate_passes_after_ingest(self):
         tmp = tempfile.mkdtemp()

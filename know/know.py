@@ -109,13 +109,17 @@ def _append_log(kb_dir, paper_id, n_claims, tag="ingest"):
         f.write(entry)
 
 
-def _write_catalog(kb_dir, paper_count):
-    """Regenerate catalog.md (code-owned index, never hand-written)."""
+def _write_catalog(kb_dir):
+    """Regenerate catalog.md (code-owned index, never hand-written).
+
+    The header count is len(pages), not the last batch size, so merging a
+    second corpus (A + B in one layer) keeps the index accurate.
+    """
     cat_path = os.path.join(kb_dir, "catalog.md")
     os.makedirs(kb_dir, exist_ok=True)
     papers_dir = os.path.join(kb_dir, "papers")
     pages = sorted(f for f in os.listdir(papers_dir) if f.endswith(".md"))
-    lines = [f"# catalog\n", f"papers: {paper_count}\n", ""]
+    lines = [f"# catalog\n", f"papers: {len(pages)}\n", ""]
     for p in pages:
         lines.append(f"- [{p.replace('.md','')}]({os.path.join('papers', p)})")
     with open(cat_path, "w", encoding="utf-8") as f:
@@ -124,7 +128,8 @@ def _write_catalog(kb_dir, paper_count):
 
 # ---------- metadata extraction from identity layer ----------
 
-def _build_paper_meta(identity_rec, paper_id, ocr_version="deepseek-ocr-v1"):
+def _build_paper_meta(identity_rec, paper_id, project="power-system-cyber-security-review",
+                      ocr_version="deepseek-ocr-v1"):
     """Build the paper_meta dict the ingest loop needs, from an identity record.
 
     identity_rec comes from identity.build_identity(); it carries doi, status,
@@ -141,7 +146,7 @@ def _build_paper_meta(identity_rec, paper_id, ocr_version="deepseek-ocr-v1"):
         "title": identity_rec.get("title") or paper_id,
         "authors": authors or "[]",
         "year": identity_rec.get("year", ""),
-        "project": "power-system-cyber-security-review",
+        "project": project,
         "source_rel": identity_rec.get("source_rel", paper_id),
         "ocr_version": ocr_version,
         "identity_status": identity_rec.get("status", "clean"),
@@ -163,7 +168,7 @@ def _existing_claim_keys(conn, paper_id):
 
 def ingest(ocr_dir, derived_dir, db_path, kb_dir,
            doi_map_path=None, metadata_dir=None, model_alias="gemini-flash-lite",
-           backfill=False):
+           project="power-system-cyber-security-review", backfill=False):
     """Scan derived_v2 JSONs + OCR md -> write index.sqlite + markdown pages.
 
     Idempotent: re-ingesting the same papers does not duplicate claim rows
@@ -180,6 +185,11 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir,
     Semantically identical to a normal ingest (same idempotent anchor+dedup),
     but log.md entries are tagged 'backfill' so the archive records which
     claims came from a preservation snapshot vs the initial load.
+
+    project tags every paper page + papers row (schema: papers.project),
+    so one knowledge layer can hold several reviews (e.g. corpus A
+    'power-system-cyber-security-review' and corpus B 'thesis-litrev')
+    without mixing their scopes (master plan Phase 2 step 2 merge).
     """
     conn = config.init_db(db_path)
     os.makedirs(kb_dir, exist_ok=True)
@@ -211,7 +221,12 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir,
 
         claims = derive.derive([json_path], ocr_md)
         identity_rec = id_map.get(paper_id, {"paper_id": paper_id})
-        paper_meta = _build_paper_meta(identity_rec, paper_id)
+        paper_meta = _build_paper_meta(identity_rec, paper_id, project=project)
+
+        # remember the stored identity before upserting (page rewrite gate)
+        prev = conn.execute(
+            "SELECT doi, identity_status FROM papers WHERE paper_id=?",
+            (paper_id,)).fetchone()
 
         # upsert paper row (with DOI + identity_status from the identity layer)
         config.insert_paper(
@@ -235,12 +250,19 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir,
             inserted += 1
 
         conn.commit()
-        if inserted > 0 or not _paper_has_page(kb_dir, paper_id):
+        identity_changed = (
+            prev is not None and (
+                (prev[0] or "") != (paper_meta["doi"] or "")
+                or (prev[1] or "") != (paper_meta["identity_status"] or "")
+            )
+        )
+        if (inserted > 0 or not _paper_has_page(kb_dir, paper_id)
+                or identity_changed):
             _write_paper_page(kb_dir, paper_id, paper_meta, claims)
         _append_log(kb_dir, paper_id, inserted, tag=("backfill" if backfill else "ingest"))
         paper_count += 1
 
-    _write_catalog(kb_dir, paper_count)
+    _write_catalog(kb_dir)
     conn.close()
     return paper_count
 
@@ -384,7 +406,7 @@ def _main(argv):
         if len(argv) < 4:
             print("usage: know.py ingest <ocr_dir> <derived_v2_dir> "
                   "[--doi-map PATH] [--metadata-dir PATH] [--model-alias NAME] "
-                  "[--backfill]",
+                  "[--project NAME] [--backfill]",
                   file=sys.stderr)
             return 2
         ocr_dir, derived_dir = argv[2], argv[3]
@@ -393,6 +415,7 @@ def _main(argv):
         doi_map = os.environ.get("KNOW_DOI_MAP", "")
         metadata_dir = os.environ.get("KNOW_METADATA_DIR", "")
         model_alias = os.environ.get("KNOW_MODEL_ALIAS", "gemini-flash-lite")
+        project = os.environ.get("KNOW_PROJECT", "power-system-cyber-security-review")
         backfill = "--backfill" in argv
         # CLI overrides
         if "--doi-map" in argv:
@@ -401,10 +424,13 @@ def _main(argv):
             metadata_dir = argv[argv.index("--metadata-dir") + 1]
         if "--model-alias" in argv:
             model_alias = argv[argv.index("--model-alias") + 1]
+        if "--project" in argv:
+            project = argv[argv.index("--project") + 1]
         n = ingest(ocr_dir, derived_dir, db, kb,
                    doi_map_path=(doi_map or None),
                    metadata_dir=(metadata_dir or None),
                    model_alias=model_alias,
+                   project=project,
                    backfill=backfill)
         if backfill:
             print(f"backfill: preserved {n} papers' claims (pre-overwrite "
