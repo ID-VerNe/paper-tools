@@ -12,6 +12,7 @@ CLI usage:
     python know.py validate [--db PATH] [--kb DIR]
     python know.py search "<concept>" [--db PATH] [--limit N]
     python know.py flag <claim_id> --note "..." [--db PATH]
+    python know.py concept <slug> --query "<concept>" [--db PATH] [--kb DIR]
 """
 import os
 import sys
@@ -295,6 +296,83 @@ def flag(db_path, claim_id, note):
         conn.close()
 
 
+def concept(db_path, kb_dir, slug, query, limit=30):
+    """Lazily create a concept page (schema.md §6).
+
+    Trigger: the same concept is hit across >=2 distinct papers by
+    `know search`. The page is the layer's only LLM write — this
+    function fills the machine-verifiable scaffold (frontmatter with
+    verified sources[]), and the querying agent writes the 定义/演进
+    prose on top.
+
+    Returns (created, n_papers, path) or (False, n_papers, None):
+      - created=True  -> wrote concepts/{slug}.md
+      - created=False, n_papers>=... -> the ValueError floated up
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = config.search_claims(conn, query, limit)
+    finally:
+        conn.close()
+
+    # group matched claims by paper
+    by_paper = {}
+    for r in rows:
+        by_paper.setdefault(r["paper_id"], []).append(r)
+
+    if len(by_paper) < 2:
+        raise ValueError(
+            f"concept '{slug}' hits {len(by_paper)} paper(s); needs >=2 "
+            f"to be a review-level concept (schema.md §6)"
+        )
+
+    concepts_dir = os.path.join(kb_dir, "concepts")
+    os.makedirs(concepts_dir, exist_ok=True)
+    page_path = os.path.join(concepts_dir, f"{slug}.md")
+
+    # sources[] = verified cite:// of matched claims (all survived existence
+    # gate at ingest, so every anchor is a real paragraph)
+    sources = []
+    source_lines = []
+    seen = set()
+    for paper_id in sorted(by_paper):
+        for c in by_paper[paper_id]:
+            cite = f"cite://{paper_id}/{c['anchor']}"
+            if cite in seen:
+                continue
+            seen.add(cite)
+            sources.append(cite)
+            source_lines.append(
+                f"- **{c['concept']}**: {c['quote']}  ({cite}, "
+                f"{c['heading_path'] or 'no heading'})"
+            )
+
+    header = (
+        f"---\n"
+        f"type: concept\n"
+        f"title: {slug}\n"
+        f"sources:\n"
+    )
+    for s in sources:
+        header += f"  - \"{s}\"\n"
+    header += "created: code\n---\n"
+
+    body = (
+        f"\n# {slug}\n\n"
+        f"(页面由 agent 在一次查询会话里懒创建 —— 层内唯一 LLM 写入。"
+        f"sources 由代码从匹配 claims 生成并核验，agent 不编造来源。)\n\n"
+        f"## 定义\n\n"
+        f"<!-- agent: 一句话定义 -->\n\n"
+        f"## 跨篇演进（{len(by_paper)} 篇）\n\n"
+        + "\n".join(source_lines)
+        + "\n\n## 相关概念\n\n<!-- [[other-concept]] 仅指向 concepts/ 已有页 -->\n"
+    )
+
+    with open(page_path, "w", encoding="utf-8") as f:
+        f.write(header + body)
+    return True, len(by_paper), page_path
+
+
 # ---------- CLI dispatch ----------
 
 def _main(argv):
@@ -363,6 +441,27 @@ def _main(argv):
             note = " ".join(argv[argv.index("--note")+1:])
         flag(db, int(argv[2]), note)
         print(f"flagged claim {argv[2]}")
+        return 0
+    if cmd == "concept":
+        if len(argv) < 4:
+            print('usage: know.py concept <slug> --query "<concept>"',
+                  file=sys.stderr)
+            return 2
+        db = os.environ.get("KNOW_DB", "knowledge-base/index.sqlite")
+        kb = os.environ.get("KNOW_KB", "knowledge-base")
+        slug = argv[2]
+        if "--query" not in argv:
+            print("usage: know.py concept <slug> --query \"<concept>\"",
+                  file=sys.stderr)
+            return 2
+        query = " ".join(argv[argv.index("--query") + 1:]) or "concept"
+        try:
+            created, n, path = concept(db, kb, slug, query)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 1
+        print(f"concept page {'written' if created else 'exists'}: {path} "
+              f"({n} papers)")
         return 0
     print(f"unknown command: {cmd}", file=sys.stderr)
     return 2

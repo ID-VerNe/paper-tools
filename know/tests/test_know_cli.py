@@ -242,6 +242,78 @@ class TestBackfill(unittest.TestCase):
         self.assertIn("backfill: preserved", r.stdout)
 
 
+class TestConcept(unittest.TestCase):
+    """concepts/ lazy creation (schema.md §6).
+
+    Trigger: concept hits >=2 papers -> page written with machine-verified
+    sources[]; <2 papers -> refused (ValueError).
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.tmp, "index.sqlite")
+        self.kb_dir = os.path.join(self.tmp, "knowledge-base")
+        know.ingest(FIXTURES, FIXTURES, self.db_path, self.kb_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_concept_refused_under_two_papers(self):
+        # fixture corpus: single paper -> must refuse
+        with self.assertRaises(ValueError):
+            know.concept(self.db_path, self.kb_dir, "attack", "attack")
+
+    def test_concept_writes_page_with_sources(self):
+        # seed a second paper so a query hits >=2 papers
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT INTO papers (paper_id, title, authors, year, project, "
+            "source_rel, ocr_version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("uid:second", "Second Paper", '["B"]', 2025, "p", "r", "v1"),
+        )
+        rows = conn.execute(
+            "SELECT claim_id, paper_id, concept, quote, anchor, heading_path, "
+            "conflicting FROM claims LIMIT 3"
+        ).fetchall()
+        for (cid, pid, concept_, quote, anchor, hp, cf) in rows:
+            conn.execute(
+                "INSERT INTO claims (paper_id, concept, quote, anchor, "
+                "heading_path, model, prompt_id) VALUES (?,?,?,?,?,?,?)",
+                ("uid:second", concept_, quote, anchor, hp, "gemini", "v1"),
+            )
+            conn.commit()
+            new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            conn.execute("INSERT INTO claims_fts (rowid, concept, quote) "
+                         "VALUES (?,?,?)", (new_id, concept_, quote))
+            conn.execute("INSERT INTO claims_fts_cjk (rowid, concept, quote) "
+                         "VALUES (?,?,?)", (new_id, concept_, quote))
+        conn.commit()
+        conn.close()
+
+        created, n, path = know.concept(self.db_path, self.kb_dir,
+                                        "attack", "attack")
+        self.assertTrue(created)
+        self.assertGreaterEqual(n, 2)
+        with open(path, encoding="utf-8") as f:
+            page = f.read()
+        self.assertIn("type: concept", page)
+        self.assertIn("created: code", page)
+        self.assertIn("sources:", page)
+        self.assertIn("cite://", page)
+
+    def test_concept_cli_flag(self):
+        import subprocess
+        know_path = os.path.join(os.path.dirname(__file__), "..", "know.py")
+        env = {"KNOW_DB": self.db_path, "KNOW_KB": self.kb_dir}
+        env.update(os.environ.copy())
+        r = subprocess.run(
+            [sys.executable, know_path, "concept", "fdia",
+             "--query", "attack"],
+            capture_output=True, text=True, encoding="utf-8", env=env)
+        self.assertEqual(r.returncode, 1)  # fixture = 1 paper -> refused
+
+
 class TestValidate(unittest.TestCase):
     def test_validate_passes_after_ingest(self):
         tmp = tempfile.mkdtemp()
