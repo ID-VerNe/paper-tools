@@ -94,12 +94,16 @@ def _write_paper_page(kb_dir, paper_id, paper_meta, claims):
         f.write(page)
 
 
-def _append_log(kb_dir, paper_id, n_claims):
-    """Append a code-written entry to log.md (never hand-written)."""
+def _append_log(kb_dir, paper_id, n_claims, tag="ingest"):
+    """Append a code-written entry to log.md (never hand-written).
+
+    tag is "ingest" (initial/full load) or "backfill" (pre-overwrite
+    snapshot — see ingest(..., backfill=True)).
+    """
     log_path = os.path.join(kb_dir, "log.md")
     os.makedirs(kb_dir, exist_ok=True)
     # timestamp is caller's job in real runs; tests pass a stable marker
-    entry = f"- ingest | paper={paper_id} | claims={n_claims}\n"
+    entry = f"- {tag} | paper={paper_id} | claims={n_claims}\n"
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(entry)
 
@@ -157,7 +161,8 @@ def _existing_claim_keys(conn, paper_id):
 # ---------- public API ----------
 
 def ingest(ocr_dir, derived_dir, db_path, kb_dir,
-           doi_map_path=None, metadata_dir=None, model_alias="gemini-flash-lite"):
+           doi_map_path=None, metadata_dir=None, model_alias="gemini-flash-lite",
+           backfill=False):
     """Scan derived_v2 JSONs + OCR md -> write index.sqlite + markdown pages.
 
     Idempotent: re-ingesting the same papers does not duplicate claim rows
@@ -167,6 +172,13 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir,
     When doi_map_path + metadata_dir are given, each paper's title/authors/
     year/doi come from identity.build_identity (doi_map + metadata JSON),
     with the three-layer trust order (clean / fmatter_trap / unresolved).
+
+    backfill=True is the pre-overwrite snapshot (MS golden rule, master plan
+    Phase 2 step 6): call it BEFORE a litrev-extract re-run overwrites the
+    derived JSON, so the old extraction claims are preserved in the layer.
+    Semantically identical to a normal ingest (same idempotent anchor+dedup),
+    but log.md entries are tagged 'backfill' so the archive records which
+    claims came from a preservation snapshot vs the initial load.
     """
     conn = config.init_db(db_path)
     os.makedirs(kb_dir, exist_ok=True)
@@ -224,7 +236,7 @@ def ingest(ocr_dir, derived_dir, db_path, kb_dir,
         conn.commit()
         if inserted > 0 or not _paper_has_page(kb_dir, paper_id):
             _write_paper_page(kb_dir, paper_id, paper_meta, claims)
-        _append_log(kb_dir, paper_id, inserted)
+        _append_log(kb_dir, paper_id, inserted, tag=("backfill" if backfill else "ingest"))
         paper_count += 1
 
     _write_catalog(kb_dir, paper_count)
@@ -293,7 +305,8 @@ def _main(argv):
     if cmd == "ingest":
         if len(argv) < 4:
             print("usage: know.py ingest <ocr_dir> <derived_v2_dir> "
-                  "[--doi-map PATH] [--metadata-dir PATH] [--model-alias NAME]",
+                  "[--doi-map PATH] [--metadata-dir PATH] [--model-alias NAME] "
+                  "[--backfill]",
                   file=sys.stderr)
             return 2
         ocr_dir, derived_dir = argv[2], argv[3]
@@ -302,6 +315,7 @@ def _main(argv):
         doi_map = os.environ.get("KNOW_DOI_MAP", "")
         metadata_dir = os.environ.get("KNOW_METADATA_DIR", "")
         model_alias = os.environ.get("KNOW_MODEL_ALIAS", "gemini-flash-lite")
+        backfill = "--backfill" in argv
         # CLI overrides
         if "--doi-map" in argv:
             doi_map = argv[argv.index("--doi-map") + 1]
@@ -312,8 +326,13 @@ def _main(argv):
         n = ingest(ocr_dir, derived_dir, db, kb,
                    doi_map_path=(doi_map or None),
                    metadata_dir=(metadata_dir or None),
-                   model_alias=model_alias)
-        print(f"ingested {n} papers -> {db}")
+                   model_alias=model_alias,
+                   backfill=backfill)
+        if backfill:
+            print(f"backfill: preserved {n} papers' claims (pre-overwrite "
+                  f"snapshot) -> {db}")
+        else:
+            print(f"ingested {n} papers -> {db}")
         return 0
     if cmd == "validate":
         db = os.environ.get("KNOW_DB", "knowledge-base/index.sqlite")

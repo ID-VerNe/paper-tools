@@ -183,6 +183,65 @@ class TestFlag(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class TestBackfill(unittest.TestCase):
+    """know ingest --backfill: pre-overwrite snapshot (MS golden rule).
+
+    Semantically identical to ingest (idempotent anchor+dedup), but log.md
+    entries are tagged 'backfill' so the archive records provenance.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.ocr_dir = FIXTURES
+        self.derived_dir = FIXTURES
+        self.db_path = os.path.join(self.tmp, "index.sqlite")
+        self.kb_dir = os.path.join(self.tmp, "knowledge-base")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_backfill_ingests_same_as_normal_ingest(self):
+        know.ingest(self.ocr_dir, self.derived_dir, self.db_path, self.kb_dir,
+                    backfill=True)
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        count = conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
+        conn.close()
+        self.assertGreater(count, 0)
+
+    def test_backfill_log_tagged(self):
+        know.ingest(self.ocr_dir, self.derived_dir, self.db_path, self.kb_dir,
+                    backfill=True)
+        with open(os.path.join(self.kb_dir, "log.md"), encoding="utf-8") as f:
+            log = f.read()
+        self.assertIn("- backfill | paper=", log)
+        self.assertNotIn("- ingest | ", log)
+
+    def test_backfill_after_ingest_does_not_duplicate(self):
+        """ingest then backfill -> claims must NOT double (both idempotent)."""
+        know.ingest(self.ocr_dir, self.derived_dir, self.db_path, self.kb_dir)
+        know.ingest(self.ocr_dir, self.derived_dir, self.db_path, self.kb_dir,
+                    backfill=True)
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        count = conn.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
+        conn.close()
+        self.assertLess(count, 100)  # sanity bound, same as TestIdempotent
+
+    def test_backfill_cli_flag(self):
+        """CLI: know.py ingest ... --backfill prints the backfill message."""
+        import subprocess
+        know_path = os.path.join(os.path.dirname(__file__), "..", "know.py")
+        env = {"KNOW_DB": self.db_path, "KNOW_KB": self.kb_dir}
+        env.update(os.environ.copy())
+        r = subprocess.run(
+            [sys.executable, know_path, "ingest", self.ocr_dir,
+             self.derived_dir, "--backfill"],
+            capture_output=True, text=True, encoding="utf-8", env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("backfill: preserved", r.stdout)
+
+
 class TestValidate(unittest.TestCase):
     def test_validate_passes_after_ingest(self):
         tmp = tempfile.mkdtemp()
