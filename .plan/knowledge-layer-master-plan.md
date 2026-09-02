@@ -2,10 +2,10 @@
 
 **起草日期**: 2026-08-30
 **维护者**: 用户（博士生，paper-tools 工具链维护者）+ Claude Code
-**状态**: Phase 0 / Phase 0.5 实验已完成；Phase 1 尚未开始，待用户批准
+**状态**: Phase 0 / 0.5 / 1.0 / 1 / 2 全部完成（2026-08-30）；Phase 3 尚未开始
 **关联文件**:
 - 两轮 multi-lens-research 产物：`outputs/direction-judge/`（第一轮：是否引入 LLM Wiki）、`outputs/tech-architecture/`（第二轮：存储架构借鉴）
-- 实验产物：`phase0-lab/PHASE0_REPORT.md`、`phase0-lab/PHASE05_REPORT.md`
+- 实验产物：`phase0-lab/PHASE0_REPORT.md`、`phase0-lab/PHASE05_REPORT.md`、`phase0-lab/PHASE2_REPORT.md`
 - 测试床：`C:\Onedrive\VerNe\HKU\PHD申请\RMIT_Shuo_Yan\Research_Proposal\article`（语料 A，34 篇）
 
 ---
@@ -113,11 +113,38 @@
 
 **唯一的 unmatched**（子测试 B 第 3 条，ratio 0.31）是 gemini 在 `defense_mechanism_description` 转述里夹了残缺引文"s laws and AC power equations"——LLM 截断/改写，非 OCR 问题。这印证：内联引文不可靠，独立字段才可靠。
 
+## 4.5. 已完成阶段记录（Phase 1.0 / 1 / 2，2026-08-30）
+
+**Phase 1.0 — 提示词改造 + 回填验证（已收尾）**
+- 改 4 个 prompt 模板：为每个 claim 组加独立 `evidence_quote` 字段（≤18 词逐字片段，可 `...` 连接，禁改写，无原文填 `null`）。实测命中率回到 ≥90%（从 Phase 0.5 子测试 B 的 66.7% 提到真实提取 ~100%）。
+- 用户验收：进 Phase 1。
+
+**Phase 1 — know 包 MVP + 验证（已收尾）**
+- `paper-tools/know/` 包落地：`know.py`（CLI：ingest/validate/search/flag）+ `anchors.py`（确定性分段 + sha1-8 内容寻址锚点）+ `derive.py`（扫 derived_v2 JSON → claims 行 → 锚点，零 LLM）+ `config.py`（schema）。
+- `papers` 表加 `doi` / `identity_status` 列（`insert_paper`）；`claims` 表含 `anchor` / `heading_path` / `model` / `prompt_id` / `conflicting` / `rank`。
+- 三层身份映射（MS §2.3）落地：`identity.py`（`load_doi_map` / `doi_status` / `resolve_doi` / `build_identity`）。
+- 物理布局：`know/` 包 + `knowledge-base/` git 仓库（schema.md / purpose.md / log.md / papers/ / concepts/ / catalog.md / index.sqlite 待 Phase 3）。
+- 测试：**51/51 tests**（test_anchors / test_derive / test_identity / test_know_cli），变异测试 **4/5 mutants 被 kill**（1 equivalent：sha1→md5）。
+- E2E：3 篇 seed → 14 claims，validate=OK。
+- 诚实：existence-gate 变异测试曾在 16% 概率出现假 SURVIVED——定位为 cp936 读者线程 flake（`subprocess.run(text=True)` 在非 ASCII 失败输出上崩溃），修复后 0/10 复现。KNOW_EVIDENCE.md 已订正 provenance。
+
+**Phase 2 — 回填语料 A + 身份映射 + 审计（已收尾，本次更新）**
+- v2 回填：34/34 篇全重跑 3 个 claim-bearing prompt（cyber_attacks / opf_surrogate_models / physics_informed_defense），gemini-3.1-flash-lite on :37183 → 34 个 `{paper}_v2_gemini-3.1-flash-lite.json`。
+- ingest：34 papers → **123 claims**（existence gate 丢弃 broken/unmatched 后存活）；validate=OK。
+- 身份映射：**31 clean / 1 fmatter_trap / 2 unresolved**（`.fmatter` 伪 DOI 绝不作为论文 DOI；unresolved 显式标注，无伪 DOI）。信任层级落地：doi_map > metadata JSON > agent。
+- 命中率诚实分布：5 篇小批 81.8%（<90%，用户 Plan A：track-and-report 不硬停）→ 29 篇大批 93.0% → 全 34 篇 **90.5%**。
+- manifest 审计全项通过（papers=34==md=34==catalog=34==log=34；anchors malformed=0）。
+- 过程修复 3 bug：`classify_fragmented` 对 list 值崩溃（`anchors.coerce_quote` 修复，+6 tests）；1MB 书籍 429 死循环（`MAX_CHARS=90000` cap + `!TRUNC` 标记）；CRLF 污染 paper_id（LF-only 列表重跑）。
+- 产出：`phase0-lab/PHASE2_REPORT.md`（全量审计报告）。
+
+**Phase 2 之外、Phase 3 之内**：
+- 回填运行器泛化为 `phase0-lab/backfill_run.py`（N 篇，用 production `classify_fragmented` 测命中率）；回填作为 litrev 子命令 / `know ingest --backfill` 增量触发**未做**（Phase 3 项）。
+
 ## 5. 修正后的实现计划（四阶段 + Phase 1.0）
 
 第二轮 synthesis 的 Phase 1 schema 里 `claims.quote` 标注"verbatim, from derived JSON"，但 Phase 0.5 证明当前 derived JSON 不满足此前置条件（95.6% 字段无逐字引文）。**修正：在 Phase 1 plumbing 前插入 Phase 1.0（提示词改造 + 回填验证）。** 同时把 peer review 的七个缺口逐一回应。
 
-### Phase 1.0 — 提示词改造 + 回填验证（约 0.5 天，零额外 LLM 调用）
+### Phase 1.0 — 提示词改造 + 回填验证（约 0.5 天，零额外 LLM 调用）【已完成 2026-08-30，见 §4.5】
 
 **这是被 synthesis 删掉、被 Phase 0.5 抓回的一步，也是 peer review WEAKEST LINK 的直接修复。**
 
@@ -132,7 +159,7 @@
 
 **成本**：0 额外 LLM 调用次数（改 prompt 不增加调用，只约束输出字段）；8 次重提取在用户无限量配额下可忽略。**时间**：约半天。
 
-### Phase 1 — 最小可用知识层 MVP（约 3-4 天，peer review Gap 1 上修）
+### Phase 1 — 最小可用知识层 MVP（约 3-4 天，peer review Gap 1 上修）【已完成 2026-08-30，见 §4.5】
 
 **先跑 seed，再写 plumbing**（peer review Gap 2：把 MS 的 3 篇 seed 和 contradiction-map Resolution Path 第 2 项并入，不要排在 plumbing 之后）。
 
@@ -207,7 +234,7 @@ know flag <claim_id> --note "..."   # 标记不删除（信任链：标，绝不
 
 **谁跑 validate（peer review Gap 6 的维护循环归属）**：`know validate` 是查询前的 no-op 握手，由 agent 在每次 `know search` 前自动跑，不是用户的手工杂务。写进 schema.md。
 
-### Phase 2 — 回填语料 A（约 1.5-2.5 天，peer review Gap 1 上修）
+### Phase 2 — 回填语料 A（约 1.5-2.5 天，peer review Gap 1 上修）【已完成 2026-08-30，见 §4.5】
 
 1. **身份映射，三层，严格顺序（MS §2.3）**：
    - 语料 A：doi_map.json `doi` 字段规范化；2 个 `no_confidence` → `unresolved` 列表（绝不伪 DOI）
@@ -219,7 +246,7 @@ know flag <claim_id> --note "..."   # 标记不删除（信任链：标，绝不
 5. **回滚**：每批 = 一个 git commit；`git revert` = 秒级；全回滚 = 删 knowledge-base 目录（源不动）。
 6. **回填作为 litrev 子命令**或 `know ingest --backfill`：下一次 litrev-extract 运行时在覆写 derived JSON 前自动触发增量回填（MS 的黄金规则：旧版本送进层后再被覆写）。
 
-### Phase 3 — Agent 查询协议（真正的接口）
+### Phase 3 — Agent 查询协议（真正的接口）【未开始】
 
 写进 schema.md（任何 Claude Code agent session 都能跑）：
 
@@ -261,26 +288,32 @@ know flag <claim_id> --note "..."   # 标记不删除（信任链：标，绝不
 - 改造后 prompt 产出的短逐字片段 100% 可回锚——Phase 0.5 子测试 D
 - 当前 derived JSON 95.6% 字段无逐字引文——Phase 0.5
 - 语料 A 真实结构（34/272/32/2）、`.fmatter` 陷阱、语料 B 四身份族——peer review 实地核验
+- 真实 LLM 提取（v2 prompt）evidence_quote 命中率全 34 篇 **90.5%**（5 篇小批 81.8%→29 篇 93.0%）——Phase 2
+- 身份映射全量正确：31 clean / 1 fmatter_trap / 2 unresolved，无伪 DOI——Phase 2
+- know 包 51/51 tests + 4/5 变异 kill——Phase 1
 
 **合理推测（未实测但有依据）**：
-- 改 prompt 后真实 LLM 提取命中率 ≥90%——基于子测试 D 的 100% 模拟 + 子测试 C 的 91.7% 真实专用字段，**待 Phase 1.0 真实验证**
 - 锚点方案在 1000 篇/项目规模可存活——基于 Phase 0 的 <5% 漂移 × 文件计数，未经大规模实测
+- Phase 3 Agent 查询协议 + concepts/ 概念页在真实 agent 会话可用——待 Phase 3 实施
 
 **暂时无法验证**：
 - agent 是否真会在写作时查询此层（peer review 第一轮最弱链接 + Missing Perspective）——只有真实使用才知道
 - 跨 OCR 引擎移植性（synthesis Frontier Question）——Phase 0 只测了 DeepSeek-OCR 自身稳定性，换引擎未测
+- 语料 B 身份映射（无 doi_map，四身份族）——未触及（Phase 3 范围）
 
 **已被证伪的假设**：
 - ~~"现有 derived JSON 可直接确定性重锚到 OCR 段落"~~——Phase 0.5 证伪，95.6% 字段无可锚定引文。修复靠 prompt 改造（Phase 1.0）。
 
 ## 9. 下一步（等用户定）
 
-两个选项：
+**Phase 0 / 0.5 / 1.0 / 1 / 2 全部完成**（2026-08-30）。当前待决策：是否进入 **Phase 3 — Agent 查询协议**（真正的接口，见 §5 Phase 3 块）：
 
-- **(A)** 执行 Phase 1.0：改 4 个 prompt 模板加 `evidence_quote` 字段，重跑那篇测试论文的 8 次提取，验证真实命中率 ≥90%。纯提示词层，不动架构，消耗用户配额的 8 次提取。**推荐**——把 Phase 0.5 的模拟 D 测试换成真实 LLM 提取，确认承重假设在真实提取下成立，再写 ingest 代码。
-- **(B)** 跳过 Phase 1.0，直接开始 `know` 包代码骨架，把 prompt 修改作为 ingest 流程一部分。风险：在错误的 derived JSON 格式上写投影逻辑，可能返工。
+1. **Phase 3 Agent 查询协议**——schema.md 化，search→cite://→答 attributed 归属（含作者归属）。这是把已建好的 34 篇知识层真正交付给 agent 用的那一步。
+2. **concepts/ 概念页**——懒创建，层内唯一 LLM 写入（同概念复现时）。
+3. **语料 B 身份映射**——无 doi_map，四身份族（A 之外第二块语料）。
+4. **回填作为 litrev 子命令 / `know ingest --backfill`**——下一次 litrev-extract 运行覆写前自动增量触发。
 
-我倾向 (A)。用户之前说"先从 phase0 开始，完成后再做 phase 0.5"——Phase 0 + 0.5 已完成，下一步逻辑上是 Phase 1.0（prompt 改造验证），它正是 Phase 1 plumbing 的前置。
+是否进 Phase 3 由用户决定（LLM 配额不是约束）。若不进，当前 34 篇已可被 agent 经 `know search` 查询（Phase 1 的 CLI 已交付）。
 
 ## 附录 A：产出文件清单
 

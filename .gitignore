@@ -33,3 +33,5 @@ Thumbs.db
 
 # Junction helper
 create_junction.bat
+# knowledge-base: own git repo (paper-tools/knowledge-base)
+knowledge-base/
