@@ -32,19 +32,40 @@ class Colors:
     BLUE = '\033[34m'
     RESET = '\033[0m'
 
+def resolve_api_keys(settings):
+    """把配置里的 api_key 解析成列表。支持逗号/换行分隔的字符串或数组。
+
+    优先级：settings.json 显式配置 > 内置 DEFAULT_API_KEYS。
+    两者都没有时返回空列表，由调用方给出明确错误（不要在这里 IndexError）。
+    """
+    keys = []
+    raw = (settings or {}).get("api_key") or ""
+    if isinstance(raw, str):
+        keys = [k.strip() for k in raw.replace("\n", ",").split(",") if k.strip()]
+    elif isinstance(raw, (list, tuple)):
+        keys = [str(k).strip() for k in raw if str(k).strip()]
+    if not keys and DEFAULT_API_KEYS:
+        keys = [str(k).strip() for k in DEFAULT_API_KEYS if str(k).strip()]
+    return keys
+
+
 def run_cli(args):
     # 从 setting.json 加载配置，再用命令行参数覆盖
     cli_settings = load_cli_settings()
 
     api_url = args.api_url if args.api_url else cli_settings.get("api_url", API_URL)
     model = args.model if args.model else cli_settings.get("model_name", MODEL_NAME)
-    # api_key 优先级: --api-key > --keys > settings.json
+    # api_key 优先级: --api-key > --keys > settings.json > 内置默认
     if args.api_key:
         api_keys = [args.api_key]
     elif args.keys:
         api_keys = args.keys
     else:
-        api_keys = [cli_settings.get("api_key", DEFAULT_API_KEYS[0])]
+        api_keys = resolve_api_keys(cli_settings)
+
+    if not api_keys:
+        print(f"{Colors.RED}No API key: pass --api-key or set 'api_key' in settings.json{Colors.RESET}")
+        sys.exit(2)
 
     # resume 优先级: 命令行 --resume/--no-resume > settings.json
     if args.resume is not None:
