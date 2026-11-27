@@ -28,6 +28,8 @@ class _MockHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         self.rfile.read(length)
         self.server.calls += 1
+        if getattr(self.server, "delay", 0):
+            time.sleep(self.server.delay)
         if self.server.fail:
             body = b'{"error":"mock upstream failure"}'
             self.send_response(500)
@@ -65,6 +67,7 @@ class ResumeTest(unittest.TestCase):
         self.server.calls = 0
         self.server.fail = False
         self.server.empty = False
+        self.server.delay = 0
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}/v1/chat/completions"
 
@@ -176,7 +179,7 @@ class ResumeTest(unittest.TestCase):
         self.assertEqual(self.server.calls - calls_before, 6)
 
     def test_blank_page_rescues_empty_response(self):
-        """模型对空白页返空 -> 判成功；对有字页返空 -> 仍算失败（不掩盖模型异常）。"""
+        """模型对空白页返空 -> 判成功，但 md 里必须留可见标记；有字页返空 -> 仍算失败。"""
         pdf = os.path.join(self.tmp, "blank.pdf")
         make_pdf(pdf, 2, blank=[0])
         self.server.empty = True
@@ -186,11 +189,55 @@ class ResumeTest(unittest.TestCase):
         with open(os.path.join(self.out_dir("blank"), "progress.json"), encoding="utf-8") as f:
             progress = json.load(f)
         self.assertTrue(progress["0"]["success"])
-        self.assertEqual(progress["0"]["content"], "")
+        self.assertTrue(progress["0"]["blank_rescued"])
+        self.assertIn("[Blank page 0", progress["0"]["content"])
         self.assertFalse(progress["1"]["success"])
         md = os.path.join(self.out_dir("blank"), "blank.md")
         self.assertFalse(os.path.exists(md))
-        self.assertTrue(os.path.exists(md + ".partial"))
+        self.assertIn("[Blank page 0", self.read(md + ".partial"))
+
+    def test_light_gray_text_is_not_blank(self):
+        """浅灰字（灰度 212）在旧阈值 200 下墨迹为 0，会被误判空白并丢内容。"""
+        from PIL import Image, ImageDraw
+
+        img = Image.new("RGB", (1000, 1400), "white")
+        dr = ImageDraw.Draw(img)
+        for y in range(100, 1300, 60):
+            dr.text((100, y), "light gray text 0 1 2 3 4 5 6 7 8 9", fill=(212, 212, 212))
+        self.assertFalse(OCREngine.is_blank_page(img))
+
+    def test_stop_interrupts_inflight_request(self):
+        """Stop 要能打断阻塞中的请求：读超时 8s，Stop 后必须秒级退出。"""
+        pdf = self.make_book("inflight", 2)
+        self.server.delay = 8
+
+        engine = OCREngine(api_keys=["k"], dpi=72, api_url=self.url, workers=2, resume=True,
+                           request_timeout=8, max_retries=1, page_deadline=30, save_interval=0)
+        t = threading.Thread(target=lambda: engine.process_batch([pdf], self.tmp, None), daemon=True)
+        t.start()
+        time.sleep(0.6)
+        t0 = time.time()
+        engine.stop_requested = True
+        t.join(timeout=6)
+
+        self.assertFalse(t.is_alive(), "Stop 之后 6s 内没退出")
+        self.assertLess(time.time() - t0, 2.0, "退出耗时接近读超时，说明请求没有被真正打断")
+
+    def test_legacy_md_with_errors_and_no_progress_is_stale(self):
+        """旧残 md（有失败标记）+ 无 progress：先归档 .stale 再整本重跑，新旧不并存。"""
+        pdf = self.make_book("legacy_bad", 3)
+        out = self.out_dir("legacy_bad")
+        os.makedirs(out, exist_ok=True)
+        md = os.path.join(out, "legacy_bad.md")
+        with open(md, "w", encoding="utf-8") as f:
+            f.write("> [Error on Page 1: boom]\n")
+
+        self.run_engine(pdf)
+
+        self.assertEqual(self.server.calls, 3)
+        self.assertTrue(os.path.exists(md))
+        self.assertFalse(os.path.exists(md + ".stale"))
+        self.assertNotIn("[Error on Page", self.read(md))
 
     def test_blank_page_detection(self):
         from PIL import Image, ImageDraw

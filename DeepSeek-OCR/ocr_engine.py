@@ -154,12 +154,22 @@ class OCREngine:
             return True
         return False
 
+    def _archive_stale(self, md_path, out_dir, reason):
+        """把不可信的旧 md 改名 .stale：既不与新产物并存，也留一份现场。"""
+        stale_path = md_path + ".stale"
+        try:
+            os.replace(md_path, stale_path)
+            self._log_error(out_dir, f"Stale markdown archived -> {os.path.basename(stale_path)} ({reason})")
+        except Exception as e:
+            self._log_error(out_dir, f"Failed to archive stale markdown {md_path}: {e}")
+
     def _book_state(self, out_dir, name, total):
         """done / resume / fresh。
 
-        只有「md 存在 + 进度覆盖全部页且全成功 + md 无失败占位」才算 done。
-        进度可读但不完整时，把旧 md 改名 .stale 后重做（避免失败页被永久固化）。
-        进度缺失/损坏但 md 完整时按 done 处理（兼容本次改动之前产出的语料）。
+        只有「md 存在 + 进度覆盖全部页且全成功 + md 无失败标记」才算 done。
+        残缺的 md（有失败页/缺 progress）一律归档成 .stale 后重做，
+        否则旧 md 会和新产物并存，下次又被当成「已完成」。
+        进度缺失但 md 干净时按 done 处理（兼容本次改动之前产出的语料）。
         """
         md_path = os.path.join(out_dir, f"{name}.md")
         if not os.path.exists(md_path):
@@ -171,17 +181,14 @@ class OCREngine:
         if state == "complete" and not self._md_has_errors(md_path):
             return "done"
         if state == "missing":
-            # 旧语料：没有 progress.json，md 也没错误占位 -> 认为已完成
-            return "resume" if self._md_has_errors(md_path) else "done"
+            # 旧语料：没有 progress.json，md 也没失败标记 -> 认为已完成
+            if not self._md_has_errors(md_path):
+                return "done"
+            self._archive_stale(md_path, out_dir, "legacy markdown has failure marks but no progress.json")
+            return "resume"
 
         # 进度不完整（有失败页/缺页）：md 是“残缺成品”，归档后重做
-        stale_path = md_path + ".stale"
-        try:
-            os.replace(md_path, stale_path)
-            self._log_error(out_dir, f"Stale markdown archived -> {os.path.basename(stale_path)} "
-                                     f"(progress incomplete, will re-run missing pages)")
-        except Exception as e:
-            self._log_error(out_dir, f"Failed to archive stale markdown {md_path}: {e}")
+        self._archive_stale(md_path, out_dir, "progress incomplete, will re-run missing pages")
         return "resume"
 
     def _sleep_interruptible(self, seconds):
@@ -202,12 +209,16 @@ class OCREngine:
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
     @staticmethod
-    def is_blank_page(image, ink_ratio_threshold=0.001, dark_level=200):
-        """近纯白页判定（暗像素占比，整页直方图，开销 ~ms）。
+    def is_blank_page(image, ink_ratio_threshold=0.002, dark_level=235):
+        """近空白页判定：暗于 dark_level 的像素占比 < 阈值即认为没有可识别内容。
 
         只用于「模型返回空」时兜底：空白页送 OCR 必然返回空，若一律算失败，
         整本会永远卡在 .md.partial 反复重试（实测某书 517 页里 2 页空白）。
-        阈值 0.1% 远低于任何真实正文页（实测正文 2.9%~7.2%，空白页 0.005%~0.01%）。
+
+        dark_level 取 235 而不是更暗的 200：浅灰字（灰度 205~230）也要算内容，
+        否则「字很淡但确实有字」的页会被误判成空白、悄悄丢掉（实测灰度 212 的文字
+        在 200 阈值下墨迹为 0%，在 235 阈值下 0.59%）。阈值 0.2% 仍有足够余量：
+        实测正文页 3.4%~8.0%，纯白页 0.006%~0.014%。
         """
         try:
             g = image.convert("L")
@@ -222,6 +233,31 @@ class OCREngine:
         pattern = r'(<\|ref\|>(.*?)<\|/ref\|><\|det\|>(.*?)<\|/det\|>)'
         matches = re.findall(pattern, text, re.DOTALL)
         return matches
+
+    def _post_with_stop(self, headers, payload, timeout):
+        """在守护线程里发请求，主线程 0.2s 轮询 stop_requested。
+
+        requests 的阻塞读没法从外部打断：直接 post 的话，点 Stop 要等到读超时
+        （默认 180s）才返回，看起来就是「点了没反应」。这里把请求放到守护线程，
+        主线程只负责轮询；一旦 Stop 就立刻抛错返回，残留 socket 交给守护线程自然超时。
+        """
+        box = {}
+
+        def _run():
+            try:
+                box["resp"] = requests.post(self.api_url, headers=headers, json=payload, timeout=timeout)
+            except BaseException as e:  # 交给主线程按原类型重新抛出
+                box["err"] = e
+
+        t = threading.Thread(target=_run, daemon=True, name="ocr-http")
+        t.start()
+        while t.is_alive():
+            t.join(timeout=0.2)
+            if self.stop_requested:
+                raise Exception("Stopped by user")
+        if "err" in box:
+            raise box["err"]
+        return box["resp"]
 
     def _call_openai_compatible_api(self, base64_image, api_key, read_timeout=None):
         """直接调用 OpenAI 兼容接口（不再使用 litellm）"""
@@ -243,7 +279,7 @@ class OCREngine:
         }
 
         timeout = (10, read_timeout if read_timeout else self.request_timeout)
-        response = requests.post(self.api_url, headers=headers, json=payload, timeout=timeout)
+        response = self._post_with_stop(headers, payload, timeout)
         if response.status_code == 200:
             data = response.json()
             content = data["choices"][0]["message"]["content"]
@@ -286,6 +322,8 @@ class OCREngine:
                 last_exception = e
                 err_str = f"Connection error (attempt {attempt}/{self.max_retries})"
             except Exception as e:
+                if self.stop_requested:
+                    raise Exception("Stopped by user")
                 err_str_l = str(e).lower()
                 # 不可重试的错误 —— 直接抛出
                 if "invalid api key" in err_str_l or "authentication" in err_str_l:
@@ -325,8 +363,11 @@ class OCREngine:
             if content:
                 return {"page_idx": page_idx, "content": content, "success": True}
             if self.is_blank_page(image):
-                # 空白页：模型返空是正确输出，记成功，避免整本卡在 .partial
-                return {"page_idx": page_idx, "content": "", "success": True}
+                # 空白页：模型返空是正确输出，判成功让整本能收尾；但 md 里留可见标记，
+                # 万一其实是「模型漏字」也能一眼看出来（并可用 blank_rescued 检索）。
+                return {"page_idx": page_idx,
+                        "content": f"> [Blank page {page_idx}: model returned empty]",
+                        "success": True, "blank_rescued": True}
             return {"page_idx": page_idx, "content": "Empty response", "success": False}
         except Exception as e:
             err_str = str(e).lower()
